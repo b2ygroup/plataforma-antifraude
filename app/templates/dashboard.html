@@ -18,16 +18,18 @@
         .status-APROVADO { background-color: var(--success-color); }
         .status-PENDENCIA { background-color: var(--error-color); }
         .button-details { background-color: var(--primary-color); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
-        /* Estilos do Modal */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
         .modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 800px; border-radius: 8px; position: relative; }
         .close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
         .close-button:hover { color: black; }
-        pre { background-color: #eee; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; font-size: 13px; max-height: 60vh; overflow-y: auto; }
+        .modal-images { display: flex; gap: 20px; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
+        .modal-images div { text-align: center; }
+        .modal-images img { max-width: 200px; height: auto; border-radius: 4px; border: 1px solid #ddd; }
+        .modal-images p { font-weight: bold; margin-top: 5px; font-size: 14px; }
+        pre { background-color: #eee; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; font-size: 13px; max-height: 50vh; overflow-y: auto; }
     </style>
 </head>
 <body>
-
     <div class="container">
         <h1>Histórico de Verificações</h1>
         <table id="verifications-table">
@@ -49,12 +51,12 @@
         <div class="modal-content">
             <span class="close-button">&times;</span>
             <h2>Detalhes da Verificação</h2>
+            <div id="modal-images-container" class="modal-images"></div>
             <pre id="modal-details-content"></pre>
         </div>
     </div>
 
     <script>
-        // Função para buscar os dados da nossa API e construir a tabela
         async function loadVerifications() {
             const tableBody = document.querySelector("#verifications-table tbody");
             tableBody.innerHTML = '<tr><td colspan="5">Carregando dados...</td></tr>';
@@ -63,7 +65,7 @@
                 const response = await fetch('/api/verifications');
                 const data = await response.json();
 
-                tableBody.innerHTML = ''; // Limpa a mensagem de "Carregando"
+                tableBody.innerHTML = '';
 
                 if (data.length === 0) {
                     tableBody.innerHTML = '<tr><td colspan="5">Nenhuma verificação encontrada.</td></tr>';
@@ -81,9 +83,9 @@
                         <td><button class="button-details">Ver Detalhes</button></td>
                     `;
                     
-                    // Adiciona o evento de clique no botão para abrir o modal
                     row.querySelector('.button-details').addEventListener('click', () => {
-                        showDetailsModal(verification.dados_completos);
+                        // Passa o objeto de verificação completo para a função
+                        showDetailsModal(verification);
                     });
 
                     tableBody.appendChild(row);
@@ -95,14 +97,36 @@
             }
         }
 
-        // Funções para controlar o Modal
         const modal = document.getElementById('details-modal');
         const modalContent = document.getElementById('modal-details-content');
+        const modalImagesContainer = document.getElementById('modal-images-container');
         const closeButton = document.querySelector('.close-button');
 
-        function showDetailsModal(details) {
-            // Formata o JSON para exibição bonita com 2 espaços de indentação
-            modalContent.textContent = JSON.stringify(details, null, 2);
+        function showDetailsModal(verification) {
+            modalContent.textContent = JSON.stringify(verification.dados_completos, null, 2);
+            
+            modalImagesContainer.innerHTML = '';
+            if (verification.doc_frente_url) {
+                modalImagesContainer.innerHTML += `
+                    <div>
+                        <p>Documento</p>
+                        <a href="${verification.doc_frente_url}" target="_blank">
+                            <img src="${verification.doc_frente_url}" alt="Foto do Documento">
+                        </a>
+                    </div>
+                `;
+            }
+            if (verification.selfie_url) {
+                modalImagesContainer.innerHTML += `
+                    <div>
+                        <p>Selfie</p>
+                        <a href="${verification.selfie_url}" target="_blank">
+                            <img src="${verification.selfie_url}" alt="Foto da Selfie">
+                        </a>
+                    </div>
+                `;
+            }
+
             modal.style.display = 'block';
         }
 
@@ -116,9 +140,7 @@
             }
         }
 
-        // Carrega os dados assim que a página é aberta
         document.addEventListener('DOMContentLoaded', loadVerifications);
     </script>
-
 </body>
 </html>
