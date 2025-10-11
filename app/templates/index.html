@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Onboarding Digital - Plataforma Anti-Fraude</title>
+    <title>Onboarding Digital</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
         :root { --primary-color: #007bff; --secondary-color: #f4f7f6; --text-color: #333; --light-text-color: #777; --border-color: #e0e0e0; --success-color: #28a745; --error-color: #dc3545; }
@@ -15,18 +15,24 @@
         .step h2 { color: var(--text-color); font-size: 24px; margin-top: 0; margin-bottom: 10px; }
         .step p { color: var(--light-text-color); font-size: 16px; line-height: 1.6; margin-bottom: 30px; }
         .button { width: 100%; padding: 15px; background-color: var(--primary-color); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.3s; margin-top: 10px; }
-        .button:hover { filter: brightness(110%); transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        .button:disabled { background-color: #ccc; cursor: not-allowed; transform: none; box-shadow: none; }
+        .button:hover { filter: brightness(110%); }
+        .button:disabled { background-color: #ccc; cursor: not-allowed; }
+        .button.secondary { background-color: #e9ecef; color: var(--text-color); }
         .camera-container { border: 2px dashed var(--border-color); border-radius: 8px; padding: 20px; margin-top: 20px; }
         .camera-feed { position: relative; width: 100%; max-width: 400px; margin: 0 auto; }
-        video { width: 100%; border-radius: 8px; transform: scaleX(-1); } /* Espelha a câmera */
-        .camera-overlay { position: absolute; top: 50%; left: 50%; width: 70%; height: 85%; transform: translate(-50%, -50%); border: 2px solid white; border-radius: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); }
+        video { width: 100%; border-radius: 8px; }
+        #selfie-webcam { transform: scaleX(-1); }
+        .camera-overlay { position: absolute; top: 50%; left: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); }
+        #doc-overlay { width: 85%; height: 70%; transform: translate(-50%, -50%); border: 2px solid white; border-radius: 12px; }
+        #selfie-overlay { width: 70%; height: 85%; transform: translate(-50%, -50%); border: 2px solid white; border-radius: 50%; }
         .camera-instruction { position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 500; z-index: 10; }
         .loader { border: 8px solid #f3f3f3; border-top: 8px solid var(--primary-color); border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .form-group { text-align: left; margin-bottom: 15px; }
+        input[type="text"] { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; box-sizing: border-box; }
         #result-container { text-align: left; }
         .result-section { border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 15px; }
-        .result-header { background-color: #f8f9fa; padding: 10px 15px; font-weight: bold; cursor: pointer; border-bottom: 1px solid var(--border-color); }
+        .result-header { background-color: #f8f9fa; padding: 10px 15px; font-weight: bold; cursor: pointer; }
         .result-body { padding: 15px; font-size: 14px; display: none; }
         .result-status { float: right; padding: 3px 8px; border-radius: 12px; color: white; font-size: 12px; }
         .result-status.APROVADO, .result-status.SUCESSO { background-color: var(--success-color); }
@@ -46,33 +52,50 @@
         </div>
         <div class="step" id="step-2">
             <h2>Foto do Documento</h2>
-            <p>Posicione seu documento (RG ou CNH) na frente da câmera e tire uma foto nítida.</p>
+            <p>Use a câmera traseira. Posicione seu documento na moldura e tire uma foto nítida.</p>
             <div class="camera-container">
                 <div class="camera-feed">
-                    <video id="doc-webcam" autoplay playsinline style="transform: none;"></video> <div class="camera-overlay" style="border-radius: 12px; height: 70%; width: 85%;"></div>
+                    <video id="doc-webcam" autoplay playsinline></video>
+                    <div id="doc-overlay" class="camera-overlay"></div>
                 </div>
                 <canvas id="doc-canvas" style="display:none;"></canvas>
             </div>
             <button class="button" onclick="takePicture('doc')">Capturar Documento</button>
         </div>
         <div class="step" id="step-3">
+            <h2>Confirme seus Dados</h2>
+            <p>Verifique se os dados extraídos do seu documento estão corretos.</p>
+            <div id="ocr-loader" class="loader"></div>
+            <div id="ocr-form" style="display:none;">
+                <div class="form-group">
+                    <label for="nome">Nome Completo:</label>
+                    <input type="text" id="nome">
+                </div>
+                <div class="form-group">
+                    <label for="cpf">CPF:</label>
+                    <input type="text" id="cpf">
+                </div>
+                <button class="button" onclick="nextStep()">Dados Corretos, Avançar</button>
+            </div>
+        </div>
+        <div class="step" id="step-4">
             <h2>Prova de Vida</h2>
-            <p>Vamos tirar uma foto sua. Siga as instruções na tela.</p>
+            <p>Use a câmera frontal. Siga as instruções na tela.</p>
              <div class="camera-container">
                 <div class="camera-feed">
                     <video id="selfie-webcam" autoplay playsinline></video>
-                    <div class="camera-overlay"></div>
-                    <div id="selfie-instruction" class="camera-instruction" style="display: none;">Centralize o rosto</div>
+                    <div id="selfie-overlay" class="camera-overlay"></div>
+                    <div id="selfie-instruction" class="camera-instruction" style="display: none;"></div>
                 </div>
                 <canvas id="selfie-canvas" style="display:none;"></canvas>
             </div>
         </div>
-        <div class="step" id="step-4">
+        <div class="step" id="step-5">
              <h2>Analisando seus dados</h2>
              <p>Estamos realizando as validações de segurança. Isso pode levar alguns segundos.</p>
              <div class="loader"></div>
         </div>
-        <div class="step" id="step-5">
+        <div class="step" id="step-6">
              <h2>Verificação Concluída</h2>
              <div id="final-status-container"></div>
              <p>Veja abaixo os detalhes da sua análise de segurança.</p>
@@ -85,6 +108,7 @@
         let capturedDocBlob = null;
         let capturedSelfieBlob = null;
         let activeStream = null;
+        let ocrResultData = {};
 
         const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -102,33 +126,74 @@
             const nextStepNumber = currentStep + 1;
             showStep(nextStepNumber);
             if (nextStepNumber === 2) { startCamera('doc'); } 
-            else if (nextStepNumber === 3) { runLivenessSequence(); } // Inicia a sequência de Liveness
-            else if (nextStepNumber === 4) { verificarPessoaFisica(); }
+            else if (nextStepNumber === 4) { runLivenessSequence(); } 
+            else if (nextStepNumber === 5) { verificarPessoaFisica(); }
         }
         
         function restart() {
             capturedDocBlob = null;
             capturedSelfieBlob = null;
+            ocrResultData = {};
+            if (activeStream) {
+                activeStream.getTracks().forEach(track => track.stop());
+                activeStream = null;
+            }
             showStep(1);
         }
 
         async function startCamera(type) {
+            const isDoc = type === 'doc';
             const webcamElement = document.getElementById(`${type}-webcam`);
+            const constraints = {
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: isDoc ? { ideal: 'environment' } : 'user'
+                }
+            };
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' } });
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 webcamElement.srcObject = stream;
                 activeStream = stream;
-                return true; // Retorna sucesso
+                return true;
             } catch (err) {
-                alert("Erro ao acessar a câmera. Verifique as permissões do navegador e atualize a página.");
-                return false; // Retorna falha
+                alert("Erro ao acessar a câmera. Verifique as permissões e se a câmera correta está disponível.");
+                restart();
+                return false;
             }
+        }
+
+        function takePicture(type) {
+            const isDoc = type === 'doc';
+            const webcamElement = document.getElementById(`${type}-webcam`);
+            const canvasElement = document.getElementById(`${type}-canvas`);
+            const context = canvasElement.getContext('2d');
+            canvasElement.width = webcamElement.videoWidth;
+            canvasElement.height = webcamElement.videoHeight;
+
+            if (type === 'selfie') {
+                context.scale(-1, 1);
+                context.drawImage(webcamElement, -canvasElement.width, 0, canvasElement.width, canvasElement.height);
+            } else {
+                context.drawImage(webcamElement, 0, 0, canvasElement.width, canvasElement.height);
+            }
+            
+            canvasElement.toBlob(function(blob) {
+                if (isDoc) {
+                    capturedDocBlob = blob;
+                    showStep(3);
+                    extrairDadosDoDocumento(blob);
+                } else {
+                    capturedSelfieBlob = blob;
+                    nextStep();
+                }
+            }, 'image/jpeg', 0.9);
         }
 
         async function runLivenessSequence() {
             const instructionEl = document.getElementById('selfie-instruction');
             const cameraStarted = await startCamera('selfie');
-            if (!cameraStarted) { restart(); return; }
+            if (!cameraStarted) { return; }
 
             instructionEl.style.display = 'block';
             
@@ -138,53 +203,59 @@
             instructionEl.innerText = "Agora, SORRIA!";
             await sleep(2000);
 
-            // Tira a foto automaticamente após o último comando
             takePicture('selfie');
         }
 
-        function takePicture(type) {
-            const webcamElement = document.getElementById(`${type}-webcam`);
-            const canvasElement = document.getElementById(`${type}-canvas`);
-            const context = canvasElement.getContext('2d');
-            canvasElement.width = webcamElement.videoWidth;
-            canvasElement.height = webcamElement.videoHeight;
+        async function extrairDadosDoDocumento(docBlob) {
+            const ocrLoader = document.getElementById('ocr-loader');
+            const ocrForm = document.getElementById('ocr-form');
+            ocrLoader.style.display = 'block';
+            ocrForm.style.display = 'none';
 
-            // Se for a selfie, inverte a imagem horizontalmente para corrigir o efeito espelho
-            if (type === 'selfie') {
-                context.scale(-1, 1);
-                context.drawImage(webcamElement, -canvasElement.width, 0, canvasElement.width, canvasElement.height);
-            } else {
-                context.drawImage(webcamElement, 0, 0, canvasElement.width, canvasElement.height);
-            }
-            
-            canvasElement.toBlob(function(blob) {
-                if (type === 'doc') {
-                    capturedDocBlob = blob;
-                } else {
-                    capturedSelfieBlob = blob;
-                }
-                nextStep();
-            }, 'image/jpeg');
-        }
-
-        async function verificarPessoaFisica() {
-            // (Esta função permanece a mesma da versão anterior, completa)
-            if (!capturedDocBlob || !capturedSelfieBlob) { alert("Ocorreu um erro. Por favor, reinicie o processo."); restart(); return; }
             const formData = new FormData();
-            formData.append('nome', 'Candidato a Verificar');
-            formData.append('cpf', '123.456.789-10');
+            formData.append('documento', docBlob, 'documento.jpg');
+            try {
+                const response = await fetch('/onboarding/pf/extrair-ocr', { method: 'POST', body: formData });
+                if (!response.ok) throw new Error('Falha no OCR');
+                
+                ocrResultData = await response.json();
+                
+                document.getElementById('nome').value = ocrResultData.dados.nome || '';
+                document.getElementById('cpf').value = ocrResultData.dados.cpf || ocrResultData.dados.cpf_no_rg || '';
+                
+            } catch (error) {
+                console.error(error);
+                alert("Não foi possível ler os dados do documento. Por favor, tente novamente com melhor iluminação.");
+                showStep(2);
+            } finally {
+                ocrLoader.style.display = 'none';
+                ocrForm.style.display = 'block';
+            }
+        }
+        
+        async function verificarPessoaFisica() {
+            if (!capturedDocBlob || !capturedSelfieBlob) { restart(); return; }
+            
+            const formData = new FormData();
+            formData.append('nome', document.getElementById('nome').value);
+            formData.append('cpf', document.getElementById('cpf').value);
+            formData.append('tipo_documento', ocrResultData.tipo_documento_identificado);
             formData.append('documento', capturedDocBlob, 'documento.jpg');
             formData.append('selfie', capturedSelfieBlob, 'selfie.jpg');
             try {
                 const response = await fetch('/onboarding/pf/verificar', { method: 'POST', body: formData });
                 const data = await response.json();
                 displayResults(data);
-            } catch (error) { console.error(error); alert("Erro de comunicação com o servidor."); restart(); } 
-            finally { showStep(5); }
+            } catch (error) { 
+                console.error(error); 
+                alert("Erro de comunicação com o servidor.");
+                restart(); 
+            } finally {
+                showStep(6);
+            }
         }
 
         function displayResults(data) {
-            // (Esta função permanece a mesma da versão anterior, completa)
             const resultContainer = document.getElementById('result-container');
             const finalStatusContainer = document.getElementById('final-status-container');
             resultContainer.innerHTML = '';
@@ -206,7 +277,10 @@
                 resultContainer.appendChild(section);
             }
         }
-        function formatStepName(key) { return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); }
+        
+        function formatStepName(key) { 
+            return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); 
+        }
     </script>
 </body>
 </html>

@@ -9,18 +9,25 @@ from app.models import Verificacao
 bp = Blueprint('onboarding_pf', __name__)
 
 # --- ==================================================================== ---
-# --- MOTOR DE VERIFICAÇÃO V3 - ADICIONANDO LIVENESS ATIVO                ---
+# --- MOTOR DE VERIFICAÇÃO V4 - FLUXO INTERATIVO                          ---
 # --- ==================================================================== ---
 
-# (As funções simular_receita_federal_pep, simular_liveness_passivo, simular_ocr, 
-# simular_face_match, simular_bgc, e simular_validacao_documento continuam exatamente as mesmas)
 def simular_receita_federal_pep(cpf):
+    """Simula a consulta na Receita Federal e a verificação de Pessoa Politicamente Exposta (PEP)."""
     current_app.logger.debug(f"MOCK (Receita Federal + PEP): Consultando CPF {cpf}...")
     time.sleep(0.5)
     is_pep = random.choice([True, False])
-    return { "status": "SUCESSO", "dados": { "situacao_cadastral": "REGULAR", "nome_completo_rf": "Leonardo Alves da Silva", "pep": is_pep } }
+    return {
+        "status": "SUCESSO",
+        "dados": {
+            "situacao_cadastral": "REGULAR",
+            "nome_completo_rf": "Leonardo Alves da Silva",
+            "pep": is_pep
+        }
+    }
 
 def simular_liveness_passivo(selfie_bytes):
+    """Simula a análise de Liveness Passivo para detectar fraudes como fotos de telas, máscaras, etc."""
     current_app.logger.debug("MOCK (Liveness Passivo): Analisando características do arquivo da selfie...")
     time.sleep(1)
     score = random.uniform(0.85, 0.99)
@@ -29,30 +36,31 @@ def simular_liveness_passivo(selfie_bytes):
     current_app.logger.debug(f"MOCK (Liveness Passivo): Veredito: {veredito}")
     return {"status": veredito, "score": score, "detalhes": motivo}
 
-# >>> NOVA FUNÇÃO <<<
 def simular_liveness_ativo():
     """Simula a verificação do desafio de prova de vida (ex: sorriso)."""
     current_app.logger.debug("MOCK (Liveness Ativo): Verificando se o desafio (sorriso) foi completo...")
     time.sleep(0.5)
-    # Aqui, um sistema real analisaria o vídeo/fotos para confirmar o movimento.
-    # Nossa simulação sempre aprovará.
     veredito = "APROVADO"
     motivo = "Movimento de sorriso detectado com sucesso."
     current_app.logger.debug(f"MOCK (Liveness Ativo): Veredito: {veredito}")
     return {"status": veredito, "desafio_completado": "sorriso", "detalhes": motivo}
 
 def simular_ocr(doc_bytes):
+    """
+    Simula um serviço de OCR inteligente que identifica o tipo de documento e extrai os dados.
+    """
     current_app.logger.debug("MOCK (OCR): Analisando e tipificando documento...")
     time.sleep(2)
     tipo_documento = random.choice(["RG", "CNH"])
     if tipo_documento == "CNH":
-        dados_extraidos = { "nome": "Leonardo A. Silva", "cpf": "111.222.333-44", "data_nascimento": "1995-08-10", "filiacao": "Maria da Silva", "numero_registro": "01234567890" }
-    else:
-        dados_extraidos = { "nome": "Leonardo Alves da Silva", "rg": "12.345.678-9", "data_expedicao": "2015-01-20", "filiacao": "Maria da Silva / Joao da Silva", "cpf_no_rg": "111.222.333-44" }
+        dados_extraidos = { "nome": "Leonardo A. Silva (do CNH)", "cpf": "111.222.333-44", "data_nascimento": "1995-08-10", "filiacao": "Maria da Silva", "numero_registro": "01234567890" }
+    else: # RG
+        dados_extraidos = { "nome": "Leonardo Alves da Silva (do RG)", "rg": "12.345.678-9", "data_expedicao": "2015-01-20", "filiacao": "Maria da Silva / Joao da Silva", "cpf_no_rg": "111.222.333-44" }
     current_app.logger.debug(f"MOCK (OCR): Documento identificado como {tipo_documento}. Dados extraídos.")
-    return { "status": "SUCESSO", "tipo_documento_identificado": tipo_documento, "dados": dados_extraidos, "foto_3x4_base64": "..." }
+    return { "status": "SUCESSO", "tipo_documento_identificado": tipo_documento, "dados": dados_extraidos, "foto_3x4_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" }
 
 def simular_face_match(foto_doc_base64, selfie_bytes):
+    """Simula a comparação biométrica entre a foto do documento e a selfie."""
     current_app.logger.debug("MOCK (Face Match): Comparando biometria facial...")
     time.sleep(1)
     similaridade = random.uniform(0.90, 0.99)
@@ -62,6 +70,9 @@ def simular_face_match(foto_doc_base64, selfie_bytes):
     return {"status": status, "similaridade": similaridade, "threshold": threshold}
 
 def simular_bgc(cpf, nome):
+    """
+    Simula o Background Check (BGC) com as fontes detalhadas na apresentação.
+    """
     current_app.logger.debug(f"MOCK (BGC): Iniciando checagem de antecedentes para {nome}...")
     time.sleep(2)
     has_mandado_prisao = random.choice([True, False])
@@ -71,11 +82,30 @@ def simular_bgc(cpf, nome):
     return {"status": status_final_bgc, "detalhes": detalhes}
 
 def simular_validacao_documento(doc_bytes, tipo_documento):
+    """Simula a validação de legitimidade do documento (Documentoscopia / Dados Biométricos)."""
     current_app.logger.debug(f"MOCK (Validação Doc): Iniciando validação de legitimidade para {tipo_documento}...")
     time.sleep(1.5)
     metodo = "Checagem via base governamental" if tipo_documento == "CNH" else "Análise por documentoscopia"
     current_app.logger.debug(f"MOCK (Validação Doc): Documento aprovado via {metodo}.")
     return {"status": "APROVADO", "metodo": metodo}
+
+# --- ENDPOINT DE OCR REINTRODUZIDO ---
+@bp.route('/extrair-ocr', methods=['POST'])
+def extrair_ocr():
+    logger = current_app.logger
+    if 'documento' not in request.files:
+        return jsonify({"erro": "O arquivo 'documento' é obrigatório."}), 400
+    
+    arquivo_documento = request.files['documento']
+    logger.info(f'Recebido arquivo para OCR: {arquivo_documento.filename}')
+    
+    documento_bytes = arquivo_documento.read()
+    resultado_ocr = simular_ocr(documento_bytes)
+    
+    if resultado_ocr['status'] == 'SUCESSO':
+        return jsonify(resultado_ocr)
+    else:
+        return jsonify({"erro": "Não foi possível extrair dados do documento."}), 500
 
 # --- ENDPOINT PRINCIPAL ATUALIZADO ---
 @bp.route('/verificar', methods=['POST'])
@@ -88,36 +118,29 @@ def verificar_pessoa_fisica():
     cpf_cliente = request.form.get('cpf', 'N/A')
     arquivo_documento = request.files['documento']
     arquivo_selfie = request.files['selfie']
-    logger.info(f'ONBOARDING PF V3: Iniciando fluxo para {nome_cliente} (CPF: {cpf_cliente})')
+    
+    logger.info(f'ONBOARDING PF V4: Iniciando fluxo final para {nome_cliente} (CPF: {cpf_cliente})')
     documento_bytes = arquivo_documento.read()
     selfie_bytes = arquivo_selfie.read()
 
     workflow_results = {}
     status_geral = "APROVADO"
-
-    # --- Executando o fluxo com Liveness Ativo e Passivo ---
-    workflow_results['receita_federal_pep'] = simular_receita_federal_pep(cpf_cliente)
     
-    # Adicionamos a verificação de Liveness Ativo
+    workflow_results['receita_federal_pep'] = simular_receita_federal_pep(cpf_cliente)
     workflow_results['liveness_ativo'] = simular_liveness_ativo()
     if workflow_results['liveness_ativo']['status'] != 'APROVADO': status_geral = "PENDENCIA"
     
     workflow_results['liveness_passivo'] = simular_liveness_passivo(selfie_bytes)
     if workflow_results['liveness_passivo']['status'] != 'APROVADO': status_geral = "PENDENCIA"
     
-    workflow_results['ocr'] = simular_ocr(documento_bytes)
-    if workflow_results['ocr']['status'] != 'SUCESSO': status_geral = "PENDENCIA"
-    
-    foto_doc_b64 = workflow_results['ocr'].get("foto_3x4_base64", "")
+    foto_doc_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" 
     workflow_results['face_match'] = simular_face_match(foto_doc_b64, selfie_bytes)
     if workflow_results['face_match']['status'] != 'APROVADO': status_geral = "PENDENCIA"
     
-    cpf_para_bgc = workflow_results['ocr'].get("dados", {}).get("cpf", cpf_cliente)
-    nome_para_bgc = workflow_results['ocr'].get("dados", {}).get("nome", nome_cliente)
-    workflow_results['background_check'] = simular_bgc(cpf_para_bgc, nome_para_bgc)
+    workflow_results['background_check'] = simular_bgc(cpf_cliente, nome_cliente)
     if workflow_results['background_check']['status'] != 'APROVADO': status_geral = "PENDENCIA"
     
-    tipo_doc = workflow_results['ocr'].get("tipo_documento_identificado", "DESCONHECIDO")
+    tipo_doc = request.form.get('tipo_documento', 'RG') 
     workflow_results['validacao_documento'] = simular_validacao_documento(documento_bytes, tipo_doc)
     if workflow_results['validacao_documento']['status'] != 'APROVADO': status_geral = "PENDENCIA"
 
