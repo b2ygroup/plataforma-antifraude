@@ -89,7 +89,7 @@ def simular_validacao_documento(doc_bytes, tipo_documento):
     current_app.logger.debug(f"MOCK (Validação Doc): Documento aprovado via {metodo}.")
     return {"status": "APROVADO", "metodo": metodo}
 
-# --- ENDPOINT DE OCR REINTRODUZIDO ---
+# --- ENDPOINT DE OCR REINTRODUZIDO
 @bp.route('/extrair-ocr', methods=['POST'])
 def extrair_ocr():
     logger = current_app.logger
