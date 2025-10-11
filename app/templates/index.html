@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Onboarding Digital - Plataforma Anti-Fraude</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+        
+        :root {
+            --primary-color: #6a5af9;
+            --secondary-color: #f4f7f6;
+            --text-color: #333;
+            --light-text-color: #777;
+            --border-color: #e0e0e0;
+            --success-color: #28a745;
+            --error-color: #dc3545;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--secondary-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .onboarding-container {
+            width: 100%;
+            max-width: 500px;
+            background-color: #fff;
+            border-radius: 16px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            text-align: center;
+        }
+
+        .step {
+            display: none;
+            padding: 40px;
+            animation: fadeIn 0.5s;
+        }
+
+        .step.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .step h2 {
+            color: var(--text-color);
+            font-size: 24px;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+
+        .step p {
+            color: var(--light-text-color);
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .button {
+            width: 100%;
+            padding: 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .button:hover {
+            background-color: #5a4acf;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        .button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .button.secondary {
+            background-color: #e9ecef;
+            color: var(--text-color);
+        }
+        .button.secondary:hover {
+            background-color: #ced4da;
+        }
+
+        .camera-container {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .camera-feed { position: relative; width: 100%; max-width: 400px; margin: 0 auto; }
+        video { width: 100%; border-radius: 8px; }
+        .camera-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 85%;
+            height: 70%;
+            transform: translate(-50%, -50%);
+            border: 2px solid white;
+            border-radius: 12px;
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.6);
+        }
+        .camera-preview { border-radius: 8px; max-width: 100%; margin-top: 20px; }
+        
+        .loader {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid var(--primary-color);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        #result-container { text-align: left; }
+        .result-section { border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 15px; }
+        .result-header { background-color: #f8f9fa; padding: 10px 15px; font-weight: bold; cursor: pointer; border-bottom: 1px solid var(--border-color); }
+        .result-body { padding: 15px; font-size: 14px; display: none; }
+        .result-status { float: right; padding: 3px 8px; border-radius: 12px; color: white; font-size: 12px; }
+        .result-status.APROVADO { background-color: var(--success-color); }
+        .result-status.PENDENCIA, .result-status.REPROVADO { background-color: var(--error-color); }
+        .final-status { padding: 15px; border-radius: 8px; color: #fff; text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 20px; }
+        .final-status.APROVADO { background-color: var(--success-color); }
+        .final-status.PENDENCIA { background-color: var(--error-color); }
+    </style>
+</head>
+<body>
+
+    <div class="onboarding-container">
+
+        <div class="step active" id="step-1">
+            <img src="https://img.icons8.com/color/96/000000/shield-with-a-check-mark.png" alt="Segurança"/>
+            <h2>Verificação de Identidade</h2>
+            <p>Para sua segurança, faremos uma rápida validação dos seus documentos. Tenha seu documento de identidade em mãos.</p>
+            <button class="button" onclick="nextStep()">Iniciar Verificação</button>
+        </div>
+
+        <div class="step" id="step-2">
+            <h2>Foto do Documento</h2>
+            <p>Posicione seu documento (RG ou CNH) dentro da moldura e tire uma foto nítida.</p>
+            <div class="camera-container">
+                <div class="camera-feed">
+                    <video id="doc-webcam" autoplay playsinline></video>
+                    <div class="camera-overlay"></div>
+                </div>
+                <canvas id="doc-canvas" style="display:none;"></canvas>
+            </div>
+            <button class="button" id="takeDocPicBtn" onclick="takePicture('doc')">Capturar Documento</button>
+        </div>
+
+        <div class="step" id="step-3">
+            <h2>Sua Selfie</h2>
+            <p>Agora, vamos tirar uma foto sua. Centralize seu rosto no círculo e evite acessórios como óculos e chapéus.</p>
+             <div class="camera-container">
+                <div class="camera-feed">
+                    <video id="selfie-webcam" autoplay playsinline></video>
+                </div>
+                <canvas id="selfie-canvas" style="display:none;"></canvas>
+            </div>
+            <button class="button" id="takeSelfiePicBtn" onclick="takePicture('selfie')">Capturar Selfie</button>
+        </div>
+        
+        <div class="step" id="step-4">
+            <h2>Analisando seus dados</h2>
+            <p>Estamos realizando as validações de segurança. Isso pode levar alguns segundos, por favor, não feche esta janela.</p>
+            <div class="loader"></div>
+        </div>
+
+        <div class="step" id="step-5">
+            <h2>Verificação Concluída</h2>
+            <div id="final-status-container"></div>
+            <p>Veja abaixo os detalhes da sua análise.</p>
+            <div id="result-container"></div>
+            <button class="button secondary" onclick="restart()">Iniciar Nova Verificação</button>
+        </div>
+
+    </div>
+
+    <script>
+        let currentStep = 1;
+        let capturedDocBlob = null;
+        let capturedSelfieBlob = null;
+        let activeStream = null;
+
+        function showStep(stepNumber) {
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+            document.getElementById(`step-${stepNumber}`).classList.add('active');
+            currentStep = stepNumber;
+        }
+
+        function nextStep() {
+            // Desliga a câmera anterior antes de ir para o próximo passo
+            if (activeStream) {
+                activeStream.getTracks().forEach(track => track.stop());
+                activeStream = null;
+            }
+
+            const nextStepNumber = currentStep + 1;
+            showStep(nextStepNumber);
+
+            // Liga a câmera automaticamente para os passos 2 e 3
+            if (nextStepNumber === 2) {
+                startCamera('doc');
+            } else if (nextStepNumber === 3) {
+                startCamera('selfie');
+            } else if (nextStepNumber === 4) {
+                // Ao chegar na etapa de análise, submete os dados
+                verificarPessoaFisica();
+            }
+        }
+        
+        function restart() {
+            capturedDocBlob = null;
+            capturedSelfieBlob = null;
+            if (activeStream) {
+                activeStream.getTracks().forEach(track => track.stop());
+                activeStream = null;
+            }
+            showStep(1);
+        }
+
+        async function startCamera(type) {
+            const webcamElement = document.getElementById(`${type}-webcam`);
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
+                webcamElement.srcObject = stream;
+                activeStream = stream;
+            } catch (err) {
+                alert("Erro ao acessar a câmera. Verifique as permissões do navegador e atualize a página.");
+            }
+        }
+
+        function takePicture(type) {
+            const webcamElement = document.getElementById(`${type}-webcam`);
+            const canvasElement = document.getElementById(`${type}-canvas`);
+            
+            const context = canvasElement.getContext('2d');
+            canvasElement.width = webcamElement.videoWidth;
+            canvasElement.height = webcamElement.videoHeight;
+            context.drawImage(webcamElement, 0, 0, canvasElement.width, canvasElement.height);
+            
+            canvasElement.toBlob(function(blob) {
+                if (type === 'doc') {
+                    capturedDocBlob = blob;
+                } else {
+                    capturedSelfieBlob = blob;
+                }
+                nextStep(); // Avança para o próximo passo automaticamente
+            }, 'image/jpeg');
+        }
+
+        async function verificarPessoaFisica() {
+            if (!capturedDocBlob || !capturedSelfieBlob) {
+                alert("Ocorreu um erro. Por favor, reinicie o processo.");
+                restart();
+                return;
+            }
+
+            const formData = new FormData();
+            // Dados fictícios para o backend, já que o OCR preencheria
+            formData.append('nome', 'Candidato a Verificar');
+            formData.append('cpf', '123.456.789-10');
+            formData.append('documento', capturedDocBlob, 'documento.jpg');
+            formData.append('selfie', capturedSelfieBlob, 'selfie.jpg');
+
+            try {
+                const response = await fetch('/onboarding/pf/verificar', { method: 'POST', body: formData });
+                const data = await response.json();
+                displayResults(data);
+            } catch (error) {
+                console.error(error);
+                alert("Erro de comunicação com o servidor. Tente novamente.");
+                restart();
+            } finally {
+                showStep(5);
+            }
+        }
+
+        function displayResults(data) {
+            const resultContainer = document.getElementById('result-container');
+            const finalStatusContainer = document.getElementById('final-status-container');
+            resultContainer.innerHTML = ''; // Limpa resultados anteriores
+            
+            // Exibe o status final em destaque
+            const finalStatusClass = data.status_geral === 'APROVADO' ? 'APROVADO' : 'PENDENCIA';
+            finalStatusContainer.innerHTML = `<div class="final-status ${finalStatusClass}">${data.status_geral}</div>`;
+
+            // Itera sobre cada etapa do workflow retornado pelo backend
+            for (const [key, value] of Object.entries(data.workflow_executado)) {
+                const section = document.createElement('div');
+                section.className = 'result-section';
+                
+                const statusClass = value.status.replace('SUCESSO', 'APROVADO');
+                const header = document.createElement('div');
+                header.className = 'result-header';
+                header.innerHTML = `${formatStepName(key)} <span class="result-status ${statusClass}">${value.status}</span>`;
+                
+                const body = document.createElement('div');
+                body.className = 'result-body';
+                body.innerHTML = `<pre>${JSON.stringify(value, null, 2)}</pre>`;
+                
+                header.onclick = () => {
+                    body.style.display = body.style.display === 'block' ? 'none' : 'block';
+                };
+                
+                section.appendChild(header);
+                section.appendChild(body);
+                resultContainer.appendChild(section);
+            }
+        }
+        
+        function formatStepName(key) {
+            return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+    </script>
+
+</body>
+</html>

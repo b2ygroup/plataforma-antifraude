@@ -1,0 +1,9 @@
+# requirements.txt - Versão de Produção
+
+Flask==2.3.3
+requests
+python-dotenv
+Flask-SQLAlchemy==2.5.1
+SQLAlchemy<2.0
+gunicorn
+psycopg2-binary
