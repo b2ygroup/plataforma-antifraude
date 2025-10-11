@@ -45,69 +45,13 @@
 </head>
 <body>
     <div class="onboarding-container">
-        <div class="step active" id="step-1">
-            <h2>Verificação de Identidade</h2>
-            <p>Para sua segurança, faremos uma rápida validação. Tenha um documento com foto em mãos.</p>
-            <button class="button" onclick="nextStep()">Iniciar Verificação</button>
-        </div>
-        <div class="step" id="step-2">
-            <h2>Documento (Frente)</h2>
-            <p>Use a câmera traseira. Posicione a FRENTE do seu documento na moldura.</p>
-            <div class="camera-container">
-                <div class="camera-feed">
-                    <video id="doc_frente-webcam" autoplay playsinline></video>
-                    <div id="doc_frente-overlay" class="doc-overlay camera-overlay"></div>
-                </div>
-                <canvas id="doc_frente-canvas" style="display:none;"></canvas>
-            </div>
-            <button class="button" id="doc_frente-button" onclick="takePicture('doc_frente')">Capturar Frente</button>
-        </div>
-        <div class="step" id="step-3">
-            <h2>Confirme seus Dados</h2>
-            <p>Verifique se os dados extraídos do seu documento estão corretos.</p>
-            <div id="ocr-loader" class="loader"></div>
-            <div id="ocr-form" style="display:none;">
-                <div class="form-group">
-                    <label for="nome">Nome Completo:</label>
-                    <input type="text" id="nome">
-                </div>
-                <div class="form-group">
-                    <label for="data_nascimento">Data de Nascimento:</label>
-                    <input type="text" id="data_nascimento">
-                </div>
-                <div class="form-group">
-                    <label for="cpf">CPF:</label>
-                    <input type="text" id="cpf">
-                </div>
-                <button class="button" onclick="nextStep()">Dados Corretos, Avançar</button>
-            </div>
-        </div>
-        <div class="step" id="step-4">
-            <h2>Prova de Vida</h2>
-            <p>Use a câmera frontal e siga as instruções na tela.</p>
-            <div class="camera-container">
-                <div class="camera-feed">
-                    <video id="selfie-webcam" autoplay playsinline></video>
-                    <div id="selfie-overlay" class="selfie-overlay camera-overlay"></div>
-                    <div id="selfie-instruction" class="camera-instruction" style="display: none;"></div>
-                </div>
-                <canvas id="selfie-canvas" style="display:none;"></canvas>
-            </div>
-        </div>
-        <div class="step" id="step-5">
-            <h2>Analisando seus dados</h2>
-            <p>Realizando validações de segurança...</p>
-            <div class="loader"></div>
-        </div>
-        <div class="step" id="step-6">
-            <h2>Verificação Concluída</h2>
-            <div id="final-status-container"></div>
-            <p>Veja os detalhes da sua análise.</p>
-            <div id="result-container"></div>
-            <button class="button secondary" onclick="restart()">Iniciar Nova Verificação</button>
-        </div>
+        <div class="step active" id="step-1"><h2>Verificação de Identidade</h2><p>Para sua segurança, faremos uma rápida validação. Tenha um documento com foto em mãos.</p><button class="button" onclick="nextStep()">Iniciar Verificação</button></div>
+        <div class="step" id="step-2"><h2>Documento (Frente)</h2><p>Use a câmera traseira. Posicione a FRENTE do seu documento na moldura.</p><div class="camera-container"><div class="camera-feed"><video id="doc_frente-webcam" autoplay playsinline></video><div id="doc_frente-overlay" class="doc-overlay camera-overlay"></div></div><canvas id="doc_frente-canvas" style="display:none;"></canvas></div><button class="button" id="doc_frente-button" onclick="takePicture('doc_frente')">Capturar Frente</button></div>
+        <div class="step" id="step-3"><h2>Confirme seus Dados</h2><p id="ocr-instruction">Verifique se os dados extraídos do seu documento estão corretos.</p><div id="ocr-loader" class="loader"></div><div id="ocr-form" style="display:none;"><div class="form-group"><label for="nome">Nome Completo:</label><input type="text" id="nome"></div><div class="form-group"><label for="data_nascimento">Data de Nascimento:</label><input type="text" id="data_nascimento"></div><div class="form-group"><label for="cpf">CPF:</label><input type="text" id="cpf"></div><button class="button" onclick="nextStep()">Dados Corretos, Avançar</button></div></div>
+        <div class="step" id="step-4"><h2>Prova de Vida</h2><p>Use a câmera frontal e siga as instruções na tela.</p><div class="camera-container"><div class="camera-feed"><video id="selfie-webcam" autoplay playsinline></video><div id="selfie-overlay" class="selfie-overlay camera-overlay"></div><div id="selfie-instruction" class="camera-instruction" style="display: none;"></div></div><canvas id="selfie-canvas" style="display:none;"></canvas></div></div>
+        <div class="step" id="step-5"><h2>Analisando seus dados</h2><p>Realizando validações de segurança...</p><div class="loader"></div></div>
+        <div class="step" id="step-6"><h2>Verificação Concluída</h2><div id="final-status-container"></div><p>Veja os detalhes da sua análise.</p><div id="result-container"></div><button class="button secondary" onclick="restart()">Iniciar Nova Verificação</button></div>
     </div>
-
     <script>
         let currentStep = 1;
         let capturedDocFrenteBlob = null;
@@ -151,11 +95,8 @@
         async function startCamera(type) {
             const isDoc = type.startsWith('doc');
             const webcamElement = document.getElementById(`${type}-webcam`);
-            
-            // Tentativa 1: Pedir a câmera ideal (traseira para doc, frontal para selfie)
             let constraints = { video: { facingMode: isDoc ? 'environment' : 'user' } };
             console.log("LOG: Tentativa 1 - Pedindo câmera ideal:", constraints);
-            
             try {
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 console.log("LOG: Câmera ideal iniciada com sucesso!");
@@ -164,11 +105,8 @@
                 return true;
             } catch (err) {
                 console.warn(`LOG AVISO: Falha ao obter câmera '${isDoc ? 'environment' : 'user'}'. Erro: ${err.name}. Tentando câmera alternativa.`);
-                
-                // Tentativa 2 (Fallback): Se a primeira falhou, tenta qualquer câmera disponível
-                constraints = { video: {} }; // Remove a restrição 'facingMode'
+                constraints = { video: {} };
                 console.log("LOG: Tentativa 2 - Pedindo qualquer câmera disponível (fallback).");
-                
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia(constraints);
                     console.log("LOG: Câmera alternativa iniciada com sucesso!");
@@ -191,24 +129,21 @@
             const context = canvasElement.getContext('2d');
             canvasElement.width = webcamElement.videoWidth;
             canvasElement.height = webcamElement.videoHeight;
-
             if (type === 'selfie') {
                 context.scale(-1, 1);
                 context.drawImage(webcamElement, -canvasElement.width, 0, canvasElement.width, canvasElement.height);
             } else {
                 context.drawImage(webcamElement, 0, 0, canvasElement.width, canvasElement.height);
             }
-            
             canvasElement.toBlob(function(blob) {
                 console.log(`LOG: Blob da imagem '${type}' criado com sucesso.`);
                 if (type === 'doc_frente') {
                     capturedDocFrenteBlob = blob;
-                    // Passo Interativo: Processa o OCR imediatamente
-                    showStep(3); // Mostra a tela de "Confirmar Dados" com o loader
+                    showStep(3);
                     extrairDadosDoDocumento(blob);
-                } else { // selfie
+                } else {
                     capturedSelfieBlob = blob;
-                    nextStep(); // Avança para a tela de análise final
+                    nextStep();
                 }
             }, 'image/jpeg', 0.9);
         }
@@ -219,58 +154,47 @@
             console.log("LOG: Iniciando sequência de Liveness Ativo.");
             const cameraStarted = await startCamera('selfie');
             if (!cameraStarted) { return; }
-
             instructionEl.style.display = 'block';
-            
-            // Simula detecção de rosto
             instructionEl.innerText = "Centralize seu rosto na moldura";
-            overlayEl.style.borderColor = "white"; // Cor inicial
-            await sleep(2500); // Tempo para o usuário se posicionar
-
-            // Simula que o rosto foi detectado e centralizado
+            overlayEl.style.borderColor = "white";
+            await sleep(2500);
             instructionEl.innerText = "Excelente!";
-            overlayEl.classList.add('detected'); // Muda a cor da moldura para verde
+            overlayEl.classList.add('detected');
             await sleep(1500);
-
-            // Pede o desafio
             instructionEl.innerText = "Agora, SORRIA!";
             await sleep(2000);
-
-            // Tira a foto automaticamente
             takePicture('selfie');
-            overlayEl.classList.remove('detected'); // Reseta a cor da moldura
+            overlayEl.classList.remove('detected');
         }
 
         async function extrairDadosDoDocumento(frenteBlob) {
-            // NOTE: This function expects only one document file for now.
-            // The previous logic for front/back was removed to simplify based on user feedback.
             console.log("LOG: Enviando documento para OCR...");
             const ocrLoader = document.getElementById('ocr-loader');
             const ocrForm = document.getElementById('ocr-form');
+            const ocrInstruction = document.getElementById('ocr-instruction');
             ocrLoader.style.display = 'block';
             ocrForm.style.display = 'none';
-
+            ocrInstruction.innerText = "Analisando a qualidade da foto e extraindo os dados...";
             const formData = new FormData();
             formData.append('documento_frente', frenteBlob, 'doc_frente.jpg');
             try {
                 const response = await fetch('/onboarding/pf/extrair-ocr', { method: 'POST', body: formData });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.motivo || 'Falha no OCR');
-                }
                 ocrResultData = await response.json();
                 console.log("LOG: Dados recebidos do OCR:", ocrResultData);
-                
+                if (response.status !== 200 || ocrResultData.status !== 'SUCESSO') {
+                    throw new Error(ocrResultData.motivo || 'Falha desconhecida no OCR');
+                }
                 document.getElementById('nome').value = ocrResultData.dados.nome || '';
                 document.getElementById('cpf').value = ocrResultData.dados.cpf || '';
                 document.getElementById('data_nascimento').value = ocrResultData.dados.data_nascimento || '';
-            } catch (error) {
-                console.error("LOG DE ERRO: Falha ao extrair dados do OCR.", error);
-                alert("Não foi possível ler os dados: " + error.message);
-                showStep(2);
-            } finally {
                 ocrLoader.style.display = 'none';
                 ocrForm.style.display = 'block';
+                ocrInstruction.innerText = 'Verifique se os dados extraídos do seu documento estão corretos.';
+            } catch (error) {
+                console.error("LOG DE ERRO: Falha ao extrair dados do OCR.", error);
+                alert("Falha na Leitura: " + error.message);
+                showStep(2); 
+                startCamera('doc_frente');
             }
         }
         
@@ -281,18 +205,14 @@
                 restart(); 
                 return;
             }
-            
             const formData = new FormData();
             formData.append('nome', document.getElementById('nome').value);
             formData.append('cpf', document.getElementById('cpf').value);
-            
             if (ocrResultData.foto_3x4_base64) {
                 formData.append('foto_documento_b64', ocrResultData.foto_3x4_base64);
             }
-            
             formData.append('documento_frente', capturedDocFrenteBlob, 'doc_frente.jpg');
             formData.append('selfie', capturedSelfieBlob, 'selfie.jpg');
-            
             try {
                 const response = await fetch('/onboarding/pf/verificar', { method: 'POST', body: formData });
                 const data = await response.json();

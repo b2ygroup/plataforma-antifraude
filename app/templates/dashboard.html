@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Verificações</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+        :root { --primary-color: #007bff; --secondary-color: #f8f9fa; --border-color: #dee2e6; --success-color: #28a745; --error-color: #dc3545; }
+        body { font-family: 'Roboto', sans-serif; background-color: var(--secondary-color); margin: 0; color: #212529; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); }
+        h1 { margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid var(--border-color); }
+        th { background-color: #f8f9fa; font-weight: 500; }
+        tr:hover { background-color: #f1f3f5; }
+        .status { padding: 5px 10px; border-radius: 15px; color: white; font-size: 12px; font-weight: 500; text-transform: uppercase; }
+        .status-APROVADO { background-color: var(--success-color); }
+        .status-PENDENCIA { background-color: var(--error-color); }
+        .button-details { background-color: var(--primary-color); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+        /* Estilos do Modal */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 800px; border-radius: 8px; position: relative; }
+        .close-button { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close-button:hover { color: black; }
+        pre { background-color: #eee; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; font-size: 13px; max-height: 60vh; overflow-y: auto; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Histórico de Verificações</h1>
+        <table id="verifications-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Tipo</th>
+                    <th>Status</th>
+                    <th>Data</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                </tbody>
+        </table>
+    </div>
+
+    <div id="details-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>Detalhes da Verificação</h2>
+            <pre id="modal-details-content"></pre>
+        </div>
+    </div>
+
+    <script>
+        // Função para buscar os dados da nossa API e construir a tabela
+        async function loadVerifications() {
+            const tableBody = document.querySelector("#verifications-table tbody");
+            tableBody.innerHTML = '<tr><td colspan="5">Carregando dados...</td></tr>';
+
+            try {
+                const response = await fetch('/api/verifications');
+                const data = await response.json();
+
+                tableBody.innerHTML = ''; // Limpa a mensagem de "Carregando"
+
+                if (data.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="5">Nenhuma verificação encontrada.</td></tr>';
+                    return;
+                }
+
+                data.forEach(verification => {
+                    const row = document.createElement('tr');
+                    
+                    row.innerHTML = `
+                        <td>${verification.id}</td>
+                        <td>${verification.tipo}</td>
+                        <td><span class="status status-${verification.status}">${verification.status}</span></td>
+                        <td>${verification.timestamp}</td>
+                        <td><button class="button-details">Ver Detalhes</button></td>
+                    `;
+                    
+                    // Adiciona o evento de clique no botão para abrir o modal
+                    row.querySelector('.button-details').addEventListener('click', () => {
+                        showDetailsModal(verification.dados_completos);
+                    });
+
+                    tableBody.appendChild(row);
+                });
+
+            } catch (error) {
+                console.error("Erro ao carregar verificações:", error);
+                tableBody.innerHTML = '<tr><td colspan="5">Erro ao carregar os dados.</td></tr>';
+            }
+        }
+
+        // Funções para controlar o Modal
+        const modal = document.getElementById('details-modal');
+        const modalContent = document.getElementById('modal-details-content');
+        const closeButton = document.querySelector('.close-button');
+
+        function showDetailsModal(details) {
+            // Formata o JSON para exibição bonita com 2 espaços de indentação
+            modalContent.textContent = JSON.stringify(details, null, 2);
+            modal.style.display = 'block';
+        }
+
+        closeButton.onclick = function() {
+            modal.style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // Carrega os dados assim que a página é aberta
+        document.addEventListener('DOMContentLoaded', loadVerifications);
+    </script>
+
+</body>
+</html>

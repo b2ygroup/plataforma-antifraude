@@ -13,12 +13,7 @@ from google.oauth2 import service_account
 
 bp = Blueprint('onboarding_pf', __name__)
 
-# --- ==================================================================== ---
-# --- MOTOR DE VERIFICAÇÃO V7 - OCR COMPLETO E FLUXO DE DADOS MELHORADO   ---
-# --- ==================================================================== ---
-
 def get_vision_client():
-    # (Código completo da função get_vision_client, sem alterações)
     logger = current_app.logger
     google_creds_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
     if google_creds_json_str:
@@ -33,11 +28,16 @@ def get_vision_client():
     return client
 
 def analisar_cnh_com_google_vision(doc_frente_bytes):
-    """
-    Função REAL de OCR, agora aprimorada para extrair a DATA DE NASCIMENTO.
-    """
     logger = current_app.logger
-    logger.info("OCR REAL V2: Enviando imagem para a Google Cloud Vision AI...")
+    logger.info("OCR REAL V3: Iniciando análise com Google Vision AI...")
+    
+    if len(doc_frente_bytes) < 100 * 1024: # Exemplo: menos de 100KB
+        logger.warning(f"OCR REAL V3: Imagem com baixa qualidade detectada (tamanho: {len(doc_frente_bytes)} bytes).")
+        return {
+            "status": "REPROVADO_QUALIDADE", 
+            "motivo": "A foto do documento parece estar em baixa resolução ou sem foco. Por favor, tire outra foto mais nítida."
+        }
+
     try:
         client = get_vision_client()
         image = vision.Image(content=doc_frente_bytes)
@@ -45,81 +45,118 @@ def analisar_cnh_com_google_vision(doc_frente_bytes):
         texts = response.text_annotations
 
         if not texts:
-            return {"status": "REPROVADO", "motivo": "Nenhum texto pôde ser lido no documento."}
+            return {"status": "REPROVADO_OCR", "motivo": "Não conseguimos ler os dados do documento. Tente novamente com melhor iluminação e sem reflexos."}
 
         full_text = texts[0].description
-        logger.debug(f"OCR REAL V2: Texto completo extraído:\n{full_text}")
+        logger.debug(f"OCR REAL V3: Texto completo extraído:\n{full_text}")
 
         dados_extraidos = {}
         
-        # Expressões regulares para extrair os dados da CNH
-        # NOME (geralmente a primeira linha após "NOME")
         match_nome = re.search(r'NOME\s*\n(.+)', full_text, re.IGNORECASE)
         if match_nome: dados_extraidos['nome'] = match_nome.group(1).strip()
             
-        # CPF (formato xxx.xxx.xxx-xx)
         match_cpf = re.search(r'(\d{3}\.\d{3}\.\d{3}-\d{2})', full_text)
         if match_cpf: dados_extraidos['cpf'] = match_cpf.group(1)
 
-        # DATA DE NASCIMENTO (formato xx/xx/xxxx)
         match_nasc = re.search(r'DATA NASC\w*\s*\n(\d{2}/\d{2}/\d{4})', full_text, re.IGNORECASE)
         if match_nasc: dados_extraidos['data_nascimento'] = match_nasc.group(1)
 
-        # Nº REGISTRO
         match_registro = re.search(r'Nº\s*REGISTRO\s*\n(\d+)', full_text, re.IGNORECASE)
         if match_registro: dados_extraidos['numero_registro_cnh'] = match_registro.group(1).strip()
             
-        # VALIDADE
         match_validade = re.search(r'VALIDADE\s*\n(\d{2}/\d{2}/\d{4})', full_text, re.IGNORECASE)
         if match_validade: dados_extraidos['validade_cnh'] = match_validade.group(1)
 
-        logger.info("OCR REAL V2: Dados da CNH parseados com sucesso.")
+        if 'nome' not in dados_extraidos or 'cpf' not in dados_extraidos:
+             return {"status": "REPROVADO_OCR", "motivo": "Não foi possível extrair os campos essenciais. Por favor, tire outra foto com o documento bem enquadrado."}
+
+        logger.info("OCR REAL V3: Dados da CNH parseados com sucesso.")
         return {
             "status": "SUCESSO",
             "tipo_documento_identificado": "CNH",
             "dados": dados_extraidos,
-            "foto_3x4_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", # Em um OCR real, esta seria a imagem da face extraída
+            "foto_3x4_base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
             "texto_bruto": full_text
         }
+        
     except Exception as e:
-        logger.error(f"OCR REAL V2: Erro ao chamar a API do Google Vision: {e}")
-        return {"status": "ERRO", "motivo": "Falha na comunicação com o serviço de IA."}
+        logger.error(f"OCR REAL V3: Erro ao chamar a API do Google Vision: {e}")
+        return {"status": "ERRO_API", "motivo": "Falha na comunicação com o serviço de IA."}
 
+def simular_receita_federal_pep(cpf):
+    current_app.logger.debug(f"MOCK (Receita Federal + PEP): Consultando CPF {cpf}...")
+    time.sleep(0.5)
+    is_pep = random.choice([True, False])
+    return { "status": "SUCESSO", "dados": { "situacao_cadastral": "REGULAR", "nome_completo_rf": "Leonardo Alves da Silva", "pep": is_pep } }
 
-# (As outras funções de simulação permanecem as mesmas)
-def simular_receita_federal_pep(cpf): return { "status": "SUCESSO", "dados": { "situacao_cadastral": "REGULAR", "pep": False } }
-def simular_liveness_passivo(selfie_bytes): return {"status": "APROVADO", "detalhes": "Nenhum sinal de ataque."}
-def simular_liveness_ativo(): return {"status": "APROVADO", "detalhes": "Movimento detectado."}
-def simular_bgc(cpf, nome): return {"status": "APROVADO", "detalhes": { "antecedentes_criminais": {"status": "NADA_CONSTA"}}}
-def simular_validacao_documento_ia(doc_bytes): return {"status": "APROVADO", "score_autenticidade": 0.98}
+def simular_liveness_passivo(selfie_bytes):
+    current_app.logger.debug("MOCK (Liveness Passivo): Analisando características do arquivo da selfie...")
+    time.sleep(1)
+    score = random.uniform(0.85, 0.99)
+    veredito = "APROVADO"
+    motivo = "Nenhum sinal de ataque por apresentação detectado."
+    current_app.logger.debug(f"MOCK (Liveness Passivo): Veredito: {veredito}")
+    return {"status": veredito, "score": score, "detalhes": motivo}
+
+def simular_liveness_ativo():
+    current_app.logger.debug("MOCK (Liveness Ativo): Verificando se o desafio (sorriso) foi completo...")
+    time.sleep(0.5)
+    veredito = "APROVADO"
+    motivo = "Movimento de sorriso detectado com sucesso."
+    current_app.logger.debug(f"MOCK (Liveness Ativo): Veredito: {veredito}")
+    return {"status": veredito, "desafio_completado": "sorriso", "detalhes": motivo}
 
 def simular_face_match(foto_doc_base64, selfie_bytes):
     logger = current_app.logger
     logger.debug("MOCK (Face Match): Comparando biometria facial...")
-    # Lógica aprimorada: se a foto do doc não foi enviada, a similaridade é baixa.
     if not foto_doc_base64 or len(foto_doc_base64) < 100:
         logger.warning("MOCK (Face Match): Foto do documento não recebida para comparação.")
-        similaridade = 0.10 # Score baixo
+        similaridade = 0.10
     else:
         similaridade = random.uniform(0.90, 0.99)
-    
     threshold = current_app.config.get('FACE_MATCH_THRESHOLD', 0.90)
     status = "APROVADO" if similaridade >= threshold else "PENDENCIA"
     logger.debug(f"MOCK (Face Match): Similaridade: {similaridade:.2f}, Threshold: {threshold:.2f}, Veredito: {status}")
     return {"status": status, "similaridade": similaridade, "threshold": threshold}
 
-# O endpoint /extrair-ocr agora usa a função de OCR atualizada
+def simular_bgc(cpf, nome):
+    current_app.logger.debug(f"MOCK (BGC): Iniciando checagem de antecedentes para {nome}...")
+    time.sleep(2)
+    has_mandado_prisao = random.choice([True, False])
+    detalhes = { "antecedentes_criminais": {"status": "NADA_CONSTA"}, "listas_restritivas_ofac_onu_ue_uk": {"status": "NADA_CONSTA"}, "mandados_prisao": {"status": "EM_ABERTO" if has_mandado_prisao else "NADA_CONSTA"}, "risco_telefone_email_ip": {"score_risco": random.randint(1, 100)} }
+    status_final_bgc = "PENDENCIA" if has_mandado_prisao else "APROVADO"
+    current_app.logger.debug(f"MOCK (BGC): Checagem finalizada com status: {status_final_bgc}")
+    return {"status": status_final_bgc, "detalhes": detalhes}
+
+def simular_validacao_documento_ia(doc_frente_bytes, doc_verso_bytes):
+    current_app.logger.debug("MOCK (Documentoscopia IA): Analisando padrões de segurança...")
+    time.sleep(2)
+    score_autenticidade = random.uniform(0.80, 0.99)
+    if score_autenticidade < 0.92:
+        veredito = "PENDENCIA"
+        motivo = "Inconsistências detectadas nos padrões de segurança do documento."
+    else:
+        veredito = "APROVADO"
+        motivo = "Padrões de segurança do documento validados com sucesso."
+    current_app.logger.debug(f"MOCK (Documentoscopia IA): Veredito: {veredito} (Score: {score_autenticidade:.2f})")
+    return {"status": veredito, "score_autenticidade": score_autenticidade, "detalhes": motivo}
+
 @bp.route('/extrair-ocr', methods=['POST'])
 def extrair_ocr():
+    logger = current_app.logger
     if 'documento_frente' not in request.files:
         return jsonify({"erro": "O arquivo 'documento_frente' é obrigatório."}), 400
-    resultado_ocr = analisar_cnh_com_google_vision(request.files['documento_frente'].read())
-    if resultado_ocr['status'] == 'SUCESSO':
+    
+    arquivo_frente = request.files['documento_frente']
+    frente_bytes = arquivo_frente.read()
+    
+    resultado_ocr = analisar_cnh_com_google_vision(frente_bytes)
+    
+    if resultado_ocr.get('status') == 'SUCESSO':
         return jsonify(resultado_ocr)
     else:
         return jsonify(resultado_ocr), 400
 
-# O endpoint /verificar agora recebe a foto do documento para o Face Match
 @bp.route('/verificar', methods=['POST'])
 def verificar_pessoa_fisica():
     logger = current_app.logger
@@ -130,8 +167,10 @@ def verificar_pessoa_fisica():
     cpf_cliente = request.form.get('cpf', 'N/A')
     foto_doc_b64 = request.form.get('foto_documento_b64', '')
     arquivo_frente = request.files['documento_frente']
+    arquivo_verso = request.files.get('documento_verso') # .get() para não dar erro se não vier
     arquivo_selfie = request.files['selfie']
     frente_bytes = arquivo_frente.read()
+    verso_bytes = arquivo_verso.read() if arquivo_verso else b''
     selfie_bytes = arquivo_selfie.read()
 
     logger.info(f'ONBOARDING PF V5: Iniciando fluxo final com IA para {nome_cliente} (CPF: {cpf_cliente})')
@@ -141,12 +180,12 @@ def verificar_pessoa_fisica():
     workflow_results['receita_federal_pep'] = simular_receita_federal_pep(cpf_cliente)
     workflow_results['liveness_ativo'] = simular_liveness_ativo()
     workflow_results['liveness_passivo'] = simular_liveness_passivo(selfie_bytes)
-    workflow_results['validacao_documento_ia'] = simular_validacao_documento_ia(frente_bytes)
+    workflow_results['validacao_documento_ia'] = simular_validacao_documento_ia(frente_bytes, verso_bytes)
+    if workflow_results['validacao_documento_ia']['status'] != 'APROVADO': status_geral = "PENDENCIA"
     
-    # AGORA O FACE MATCH RECEBE A FOTO REAL EXTRAÍDA DO OCR
     workflow_results['face_match'] = simular_face_match(foto_doc_b64, selfie_bytes)
     if workflow_results['face_match']['status'] != 'APROVADO': status_geral = "PENDENCIA"
-
+    
     workflow_results['background_check'] = simular_bgc(cpf_cliente, nome_cliente)
     if workflow_results['background_check']['status'] != 'APROVADO': status_geral = "PENDENCIA"
 
