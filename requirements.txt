@@ -1,8 +1,8 @@
-# requirements.txt - Versão para Vercel
-
+# requirements.txt
 Flask==2.3.3
 requests
 python-dotenv
 Flask-SQLAlchemy==2.5.1
 SQLAlchemy<2.0
 psycopg2-binary
+google-cloud-vision

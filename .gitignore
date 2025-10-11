@@ -16,3 +16,4 @@ antifraude.db
 
 # Pasta de logs
 logs/
+google-credentials.json
