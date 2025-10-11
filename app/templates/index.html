@@ -21,7 +21,7 @@
         .camera-container { border: 2px dashed var(--border-color); border-radius: 8px; padding: 20px; margin-top: 20px; }
         .camera-feed { position: relative; width: 100%; max-width: 400px; margin: 0 auto; }
         video { width: 100%; border-radius: 8px; }
-        #selfie-webcam { transform: scaleX(-1); }
+        #selfie-webcam { transform: scaleX(-1); } /* Espelha a câmera de selfie */
         .camera-overlay { position: absolute; top: 50%; left: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); }
         #doc-overlay { width: 85%; height: 70%; transform: translate(-50%, -50%); border: 2px solid white; border-radius: 12px; }
         #selfie-overlay { width: 70%; height: 85%; transform: translate(-50%, -50%); border: 2px solid white; border-radius: 50%; }
@@ -67,14 +67,8 @@
             <p>Verifique se os dados extraídos do seu documento estão corretos.</p>
             <div id="ocr-loader" class="loader"></div>
             <div id="ocr-form" style="display:none;">
-                <div class="form-group">
-                    <label for="nome">Nome Completo:</label>
-                    <input type="text" id="nome">
-                </div>
-                <div class="form-group">
-                    <label for="cpf">CPF:</label>
-                    <input type="text" id="cpf">
-                </div>
+                <div class="form-group"><label for="nome">Nome Completo:</label><input type="text" id="nome"></div>
+                <div class="form-group"><label for="cpf">CPF:</label><input type="text" id="cpf"></div>
                 <button class="button" onclick="nextStep()">Dados Corretos, Avançar</button>
             </div>
         </div>
@@ -103,7 +97,10 @@
              <button class="button secondary" onclick="restart()">Iniciar Nova Verificação</button>
         </div>
     </div>
+
     <script>
+        // --- JAVASCRIPT COM CORREÇÕES E LOGS ---
+
         let currentStep = 1;
         let capturedDocBlob = null;
         let capturedSelfieBlob = null;
@@ -113,6 +110,7 @@
         const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
         function showStep(stepNumber) {
+            console.log(`LOG: Mudando para a etapa ${stepNumber}`);
             document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
             document.getElementById(`step-${stepNumber}`).classList.add('active');
             currentStep = stepNumber;
@@ -120,6 +118,7 @@
 
         function nextStep() {
             if (activeStream) {
+                console.log("LOG: Parando stream de vídeo anterior.");
                 activeStream.getTracks().forEach(track => track.stop());
                 activeStream = null;
             }
@@ -131,6 +130,7 @@
         }
         
         function restart() {
+            console.log("LOG: Reiniciando o fluxo.");
             capturedDocBlob = null;
             capturedSelfieBlob = null;
             ocrResultData = {};
@@ -144,26 +144,37 @@
         async function startCamera(type) {
             const isDoc = type === 'doc';
             const webcamElement = document.getElementById(`${type}-webcam`);
+            
+            // --- LÓGICA CORRIGIDA E COM LOGS ---
             const constraints = {
                 video: {
                     width: { ideal: 1280 },
                     height: { ideal: 720 },
-                    facingMode: isDoc ? { ideal: 'environment' } : 'user'
+                    // 'environment' para câmera traseira (documento)
+                    // 'user' para câmera frontal (selfie)
+                    facingMode: isDoc ? 'environment' : 'user'
                 }
             };
+
+            console.log(`LOG: Tentando iniciar a câmera do tipo '${type}'`);
+            console.log("LOG: Usando as seguintes restrições (constraints):", constraints);
+
             try {
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                console.log("LOG: Câmera iniciada com sucesso!");
                 webcamElement.srcObject = stream;
                 activeStream = stream;
                 return true;
             } catch (err) {
-                alert("Erro ao acessar a câmera. Verifique as permissões e se a câmera correta está disponível.");
+                console.error("LOG DE ERRO: Falha ao iniciar a câmera.", err);
+                alert(`Erro ao acessar a câmera. Verifique as permissões e se a câmera '${isDoc ? 'traseira' : 'frontal'}' está disponível. Detalhes no console.`);
                 restart();
                 return false;
             }
         }
 
         function takePicture(type) {
+            console.log(`LOG: Capturando foto para '${type}'`);
             const isDoc = type === 'doc';
             const webcamElement = document.getElementById(`${type}-webcam`);
             const canvasElement = document.getElementById(`${type}-canvas`);
@@ -179,6 +190,7 @@
             }
             
             canvasElement.toBlob(function(blob) {
+                console.log(`LOG: Blob da imagem '${type}' criado com sucesso.`);
                 if (isDoc) {
                     capturedDocBlob = blob;
                     showStep(3);
@@ -192,11 +204,11 @@
 
         async function runLivenessSequence() {
             const instructionEl = document.getElementById('selfie-instruction');
+            console.log("LOG: Iniciando sequência de Liveness Ativo.");
             const cameraStarted = await startCamera('selfie');
             if (!cameraStarted) { return; }
 
             instructionEl.style.display = 'block';
-            
             instructionEl.innerText = "Centralize seu rosto";
             await sleep(2500);
             
@@ -207,6 +219,7 @@
         }
 
         async function extrairDadosDoDocumento(docBlob) {
+            console.log("LOG: Enviando documento para OCR...");
             const ocrLoader = document.getElementById('ocr-loader');
             const ocrForm = document.getElementById('ocr-form');
             ocrLoader.style.display = 'block';
@@ -219,13 +232,14 @@
                 if (!response.ok) throw new Error('Falha no OCR');
                 
                 ocrResultData = await response.json();
+                console.log("LOG: Dados recebidos do OCR:", ocrResultData);
                 
                 document.getElementById('nome').value = ocrResultData.dados.nome || '';
                 document.getElementById('cpf').value = ocrResultData.dados.cpf || ocrResultData.dados.cpf_no_rg || '';
                 
             } catch (error) {
-                console.error(error);
-                alert("Não foi possível ler os dados do documento. Por favor, tente novamente com melhor iluminação.");
+                console.error("LOG DE ERRO: Falha ao extrair dados do OCR.", error);
+                alert("Não foi possível ler os dados do documento. Tente novamente.");
                 showStep(2);
             } finally {
                 ocrLoader.style.display = 'none';
@@ -234,6 +248,7 @@
         }
         
         async function verificarPessoaFisica() {
+            console.log("LOG: Iniciando verificação final completa.");
             if (!capturedDocBlob || !capturedSelfieBlob) { restart(); return; }
             
             const formData = new FormData();
@@ -242,12 +257,19 @@
             formData.append('tipo_documento', ocrResultData.tipo_documento_identificado);
             formData.append('documento', capturedDocBlob, 'documento.jpg');
             formData.append('selfie', capturedSelfieBlob, 'selfie.jpg');
+            console.log("LOG: Enviando os seguintes dados para o backend:", {
+                nome: document.getElementById('nome').value,
+                cpf: document.getElementById('cpf').value,
+                tipo_documento: ocrResultData.tipo_documento_identificado
+            });
+
             try {
                 const response = await fetch('/onboarding/pf/verificar', { method: 'POST', body: formData });
                 const data = await response.json();
+                console.log("LOG: Resposta final recebida do backend:", data);
                 displayResults(data);
             } catch (error) { 
-                console.error(error); 
+                console.error("LOG DE ERRO: Falha na verificação final.", error); 
                 alert("Erro de comunicação com o servidor.");
                 restart(); 
             } finally {
@@ -256,6 +278,7 @@
         }
 
         function displayResults(data) {
+            console.log("LOG: Exibindo resultados na tela.");
             const resultContainer = document.getElementById('result-container');
             const finalStatusContainer = document.getElementById('final-status-container');
             resultContainer.innerHTML = '';
