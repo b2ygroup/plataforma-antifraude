@@ -22,9 +22,10 @@
         .camera-feed { position: relative; width: 100%; max-width: 400px; margin: 0 auto; }
         video { width: 100%; border-radius: 8px; }
         #selfie-webcam { transform: scaleX(-1); }
-        .camera-overlay { position: absolute; top: 50%; left: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); }
-        .doc-overlay { width: 85%; height: 70%; transform: translate(-50%, -50%); border: 2px solid white; border-radius: 12px; }
-        .selfie-overlay { width: 70%; height: 85%; transform: translate(-50%, -50%); border: 2px solid white; border-radius: 50%; }
+        .camera-overlay { position: absolute; top: 50%; left: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); transition: border-color 0.5s; }
+        .doc-overlay { width: 85%; height: 70%; transform: translate(-50%, -50%); border: 3px dashed white; border-radius: 12px; }
+        .selfie-overlay { width: 70%; height: 85%; transform: translate(-50%, -50%); border: 3px dashed white; border-radius: 50%; }
+        .camera-overlay.detected { border-color: var(--success-color); border-style: solid; }
         .camera-instruction { position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 500; z-index: 10; }
         .loader { border: 8px solid #f3f3f3; border-top: 8px solid var(--primary-color); border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -44,40 +45,24 @@
 </head>
 <body>
     <div class="onboarding-container">
-
         <div class="step active" id="step-1">
             <h2>Verificação de Identidade</h2>
             <p>Para sua segurança, faremos uma rápida validação. Tenha um documento com foto em mãos.</p>
             <button class="button" onclick="nextStep()">Iniciar Verificação</button>
         </div>
-
         <div class="step" id="step-2">
             <h2>Documento (Frente)</h2>
             <p>Use a câmera traseira. Posicione a FRENTE do seu documento na moldura.</p>
             <div class="camera-container">
                 <div class="camera-feed">
                     <video id="doc_frente-webcam" autoplay playsinline></video>
-                    <div class="doc-overlay camera-overlay"></div>
+                    <div id="doc_frente-overlay" class="doc-overlay camera-overlay"></div>
                 </div>
                 <canvas id="doc_frente-canvas" style="display:none;"></canvas>
             </div>
-            <button class="button" onclick="takePicture('doc_frente')">Capturar Frente do Documento</button>
+            <button class="button" id="doc_frente-button" onclick="takePicture('doc_frente')">Capturar Frente</button>
         </div>
-
         <div class="step" id="step-3">
-            <h2>Documento (Verso)</h2>
-            <p>Excelente. Agora, posicione o VERSO do seu documento na moldura.</p>
-            <div class="camera-container">
-                <div class="camera-feed">
-                    <video id="doc_verso-webcam" autoplay playsinline></video>
-                    <div class="doc-overlay camera-overlay"></div>
-                </div>
-                <canvas id="doc_verso-canvas" style="display:none;"></canvas>
-            </div>
-            <button class="button" onclick="takePicture('doc_verso')">Capturar Verso do Documento</button>
-        </div>
-
-        <div class="step" id="step-4">
             <h2>Confirme seus Dados</h2>
             <p>Verifique se os dados extraídos do seu documento estão corretos.</p>
             <div id="ocr-loader" class="loader"></div>
@@ -87,45 +72,45 @@
                     <input type="text" id="nome">
                 </div>
                 <div class="form-group">
+                    <label for="data_nascimento">Data de Nascimento:</label>
+                    <input type="text" id="data_nascimento">
+                </div>
+                <div class="form-group">
                     <label for="cpf">CPF:</label>
                     <input type="text" id="cpf">
                 </div>
                 <button class="button" onclick="nextStep()">Dados Corretos, Avançar</button>
             </div>
         </div>
-
-        <div class="step" id="step-5">
+        <div class="step" id="step-4">
             <h2>Prova de Vida</h2>
-            <p>Use a câmera frontal. Siga as instruções na tela.</p>
-             <div class="camera-container">
+            <p>Use a câmera frontal e siga as instruções na tela.</p>
+            <div class="camera-container">
                 <div class="camera-feed">
                     <video id="selfie-webcam" autoplay playsinline></video>
-                    <div class="selfie-overlay camera-overlay"></div>
+                    <div id="selfie-overlay" class="selfie-overlay camera-overlay"></div>
                     <div id="selfie-instruction" class="camera-instruction" style="display: none;"></div>
                 </div>
                 <canvas id="selfie-canvas" style="display:none;"></canvas>
             </div>
         </div>
-
-        <div class="step" id="step-6">
-             <h2>Analisando seus dados</h2>
-             <p>Realizando validações de segurança...</p>
-             <div class="loader"></div>
+        <div class="step" id="step-5">
+            <h2>Analisando seus dados</h2>
+            <p>Realizando validações de segurança...</p>
+            <div class="loader"></div>
         </div>
-
-        <div class="step" id="step-7">
-             <h2>Verificação Concluída</h2>
-             <div id="final-status-container"></div>
-             <p>Veja abaixo os detalhes da sua análise.</p>
-             <div id="result-container"></div>
-             <button class="button secondary" onclick="restart()">Iniciar Nova Verificação</button>
+        <div class="step" id="step-6">
+            <h2>Verificação Concluída</h2>
+            <div id="final-status-container"></div>
+            <p>Veja os detalhes da sua análise.</p>
+            <div id="result-container"></div>
+            <button class="button secondary" onclick="restart()">Iniciar Nova Verificação</button>
         </div>
     </div>
 
     <script>
         let currentStep = 1;
         let capturedDocFrenteBlob = null;
-        let capturedDocVersoBlob = null;
         let capturedSelfieBlob = null;
         let activeStream = null;
         let ocrResultData = {};
@@ -146,16 +131,14 @@
             }
             const nextStepNumber = currentStep + 1;
             showStep(nextStepNumber);
-            if (nextStepNumber === 2) { startCamera('doc_frente'); }
-            else if (nextStepNumber === 3) { startCamera('doc_verso'); }
-            else if (nextStepNumber === 5) { runLivenessSequence(); } 
-            else if (nextStepNumber === 6) { verificarPessoaFisica(); }
+            if (nextStepNumber === 2) { startCamera('doc_frente'); } 
+            else if (nextStepNumber === 4) { runLivenessSequence(); } 
+            else if (nextStepNumber === 5) { verificarPessoaFisica(); }
         }
         
         function restart() {
             console.log("LOG: Reiniciando o fluxo.");
             capturedDocFrenteBlob = null;
-            capturedDocVersoBlob = null;
             capturedSelfieBlob = null;
             ocrResultData = {};
             if (activeStream) {
@@ -220,41 +203,48 @@
                 console.log(`LOG: Blob da imagem '${type}' criado com sucesso.`);
                 if (type === 'doc_frente') {
                     capturedDocFrenteBlob = blob;
-                    nextStep();
-                } else if (type === 'doc_verso') {
-                    capturedDocVersoBlob = blob;
-                    if (activeStream) {
-                        activeStream.getTracks().forEach(track => track.stop());
-                        activeStream = null;
-                    }
-                    showStep(4);
-                    extrairDadosDoDocumento(capturedDocFrenteBlob, capturedDocVersoBlob);
+                    // Passo Interativo: Processa o OCR imediatamente
+                    showStep(3); // Mostra a tela de "Confirmar Dados" com o loader
+                    extrairDadosDoDocumento(blob);
                 } else { // selfie
                     capturedSelfieBlob = blob;
-                    nextStep();
+                    nextStep(); // Avança para a tela de análise final
                 }
             }, 'image/jpeg', 0.9);
         }
 
         async function runLivenessSequence() {
             const instructionEl = document.getElementById('selfie-instruction');
+            const overlayEl = document.getElementById('selfie-overlay');
             console.log("LOG: Iniciando sequência de Liveness Ativo.");
             const cameraStarted = await startCamera('selfie');
             if (!cameraStarted) { return; }
 
             instructionEl.style.display = 'block';
             
-            instructionEl.innerText = "Centralize seu rosto";
-            await sleep(2500);
-            
+            // Simula detecção de rosto
+            instructionEl.innerText = "Centralize seu rosto na moldura";
+            overlayEl.style.borderColor = "white"; // Cor inicial
+            await sleep(2500); // Tempo para o usuário se posicionar
+
+            // Simula que o rosto foi detectado e centralizado
+            instructionEl.innerText = "Excelente!";
+            overlayEl.classList.add('detected'); // Muda a cor da moldura para verde
+            await sleep(1500);
+
+            // Pede o desafio
             instructionEl.innerText = "Agora, SORRIA!";
             await sleep(2000);
 
+            // Tira a foto automaticamente
             takePicture('selfie');
+            overlayEl.classList.remove('detected'); // Reseta a cor da moldura
         }
 
-        async function extrairDadosDoDocumento(frenteBlob, versoBlob) {
-            console.log("LOG: Enviando frente e verso para OCR...");
+        async function extrairDadosDoDocumento(frenteBlob) {
+            // NOTE: This function expects only one document file for now.
+            // The previous logic for front/back was removed to simplify based on user feedback.
+            console.log("LOG: Enviando documento para OCR...");
             const ocrLoader = document.getElementById('ocr-loader');
             const ocrForm = document.getElementById('ocr-form');
             ocrLoader.style.display = 'block';
@@ -262,7 +252,6 @@
 
             const formData = new FormData();
             formData.append('documento_frente', frenteBlob, 'doc_frente.jpg');
-            formData.append('documento_verso', versoBlob, 'doc_verso.jpg');
             try {
                 const response = await fetch('/onboarding/pf/extrair-ocr', { method: 'POST', body: formData });
                 if (!response.ok) {
@@ -271,8 +260,10 @@
                 }
                 ocrResultData = await response.json();
                 console.log("LOG: Dados recebidos do OCR:", ocrResultData);
+                
                 document.getElementById('nome').value = ocrResultData.dados.nome || '';
-                document.getElementById('cpf').value = ocrResultData.dados.cpf || ocrResultData.dados.cpf_no_rg || '';
+                document.getElementById('cpf').value = ocrResultData.dados.cpf || '';
+                document.getElementById('data_nascimento').value = ocrResultData.dados.data_nascimento || '';
             } catch (error) {
                 console.error("LOG DE ERRO: Falha ao extrair dados do OCR.", error);
                 alert("Não foi possível ler os dados: " + error.message);
@@ -285,7 +276,7 @@
         
         async function verificarPessoaFisica() {
             console.log("LOG: Iniciando verificação final completa.");
-            if (!capturedDocFrenteBlob || !capturedDocVersoBlob || !capturedSelfieBlob) {
+            if (!capturedDocFrenteBlob || !capturedSelfieBlob) {
                 alert("Ocorreu um erro na captura das imagens. Por favor, reinicie.");
                 restart(); 
                 return;
@@ -294,9 +285,12 @@
             const formData = new FormData();
             formData.append('nome', document.getElementById('nome').value);
             formData.append('cpf', document.getElementById('cpf').value);
-            formData.append('tipo_documento', ocrResultData.tipo_documento_identificado || 'DESCONHECIDO');
+            
+            if (ocrResultData.foto_3x4_base64) {
+                formData.append('foto_documento_b64', ocrResultData.foto_3x4_base64);
+            }
+            
             formData.append('documento_frente', capturedDocFrenteBlob, 'doc_frente.jpg');
-            formData.append('documento_verso', capturedDocVersoBlob, 'doc_verso.jpg');
             formData.append('selfie', capturedSelfieBlob, 'selfie.jpg');
             
             try {
@@ -309,7 +303,7 @@
                 alert("Erro de comunicação com o servidor.");
                 restart(); 
             } finally {
-                showStep(7);
+                showStep(6);
             }
         }
 
