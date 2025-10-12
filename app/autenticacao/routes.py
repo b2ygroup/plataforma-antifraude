@@ -1,8 +1,8 @@
 # app/autenticacao/routes.py
 
-from flask import Blueprint, jsonify
-
-bp = Blueprint('autenticacao', __name__)
+from flask import jsonify
+# Importa o 'bp' que foi criado no arquivo __init__.py do mesmo diretório
+from app.autenticacao import bp
 
 @bp.route('/autenticar', methods=['POST'])
 def autenticar_transacao():
