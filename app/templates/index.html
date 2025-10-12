@@ -170,7 +170,8 @@
             const formData = new FormData();
             formData.append('documento_frente', frenteBlob, 'doc_frente.jpg');
             try {
-                const response = await fetch('/onboarding/pf/extrair-ocr', { method: 'POST', body: formData, headers: {'X-API-KEY': 'SUA_API_KEY_AQUI'} });
+                // SUBSTITUA AQUI
+                const response = await fetch('/onboarding/pf/extrair-ocr', { method: 'POST', body: formData, headers: {'X-API-KEY': 'Le010584'} });
                 ocrResultData = await response.json();
                 if (response.status !== 200 || ocrResultData.status !== 'SUCESSO') {
                     throw new Error(ocrResultData.motivo || 'Falha desconhecida no OCR');
@@ -197,7 +198,8 @@
             formData.append('documento_frente', capturedDocFrenteBlob, 'doc_frente.jpg');
             formData.append('selfie', capturedSelfieBlob, 'selfie.jpg');
             try {
-                const response = await fetch('/onboarding/pf/verificar', { method: 'POST', body: formData, headers: {'X-API-KEY': 'SUA_API_KEY_AQUI'} });
+                // E SUBSTITUA AQUI TAMBÉM
+                const response = await fetch('/onboarding/pf/verificar', { method: 'POST', body: formData, headers: {'X-API-KEY': 'Le010584'} });
                 const data = await response.json();
                 displayResults(data);
             } catch (error) { alert("Erro de comunicação com o servidor. Tente novamente."); restart(); } finally { showStep(6); }
