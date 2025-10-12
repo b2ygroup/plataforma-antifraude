@@ -18,24 +18,27 @@ def get_verifications():
     API interna que busca todas as verificações no banco de dados
     e as retorna em formato JSON para o frontend.
     """
-    # --- MELHOR PRÁTICA ADICIONADA ---
-    # Garante que estamos dentro do contexto da aplicação Flask para realizar
-    # operações de banco de dados, o que é mais seguro em ambientes serverless.
-    with current_app.app_context():
-        # Busca todas as verificações, ordenando das mais recentes para as mais antigas
-        verifications = Verificacao.query.order_by(Verificacao.timestamp.desc()).all()
-        
-        # Formata os dados para serem enviados como JSON
-        data = []
-        for v in verifications:
+    logger = current_app.logger
+    verifications = Verificacao.query.order_by(Verificacao.timestamp.desc()).all()
+    
+    data = []
+    for v in verifications:
+        try:
+            # Tenta carregar o JSON. Se falhar, pula para o próximo registro.
+            dados_completos = json.loads(v.resultado_completo_json)
+            
             data.append({
                 'id': v.id,
                 'tipo': v.tipo_verificacao,
                 'status': v.status_geral,
                 'timestamp': v.timestamp.strftime('%d/%m/%Y %H:%M:%S'),
-                'dados_completos': json.loads(v.resultado_completo_json),
+                'dados_completos': dados_completos,
                 'doc_frente_url': v.doc_frente_url,
                 'selfie_url': v.selfie_url
             })
+        except json.JSONDecodeError:
+            logger.error(f"Erro de JSON: Não foi possível processar o registro de verificação com ID {v.id}. O JSON salvo está malformado.")
+            # Continua para o próximo item do loop, ignorando o registro quebrado.
+            continue
             
     return jsonify(data)

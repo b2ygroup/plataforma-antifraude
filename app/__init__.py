@@ -25,13 +25,10 @@ def create_app(config_class=Config):
     app.register_blueprint(onboarding_pj_bp, url_prefix='/onboarding/pj')
     from app.onboarding_pf.routes import bp as onboarding_pf_bp
     app.register_blueprint(onboarding_pf_bp, url_prefix='/onboarding/pf')
-    from app.autenticacao.routes import bp as autenticacao_bp
+    from app.autenticacao import bp as autenticacao_bp
     app.register_blueprint(autenticacao_bp, url_prefix='/autenticacao')
-    
-    # --- REGISTRO DO NOVO BLUEPRINT DO DASHBOARD ---
     from app.dashboard import bp as dashboard_bp
     app.register_blueprint(dashboard_bp)
-
 
     @app.route('/')
     def index():
@@ -42,5 +39,15 @@ def create_app(config_class=Config):
         with app.app_context():
             db.create_all()
         return "Banco de dados inicializado com sucesso!"
+
+    # --- NOVA ROTA PARA LIMPAR E RECRIAR O BANCO DE DADOS ---
+    @app.route('/clear-db-super-secret')
+    def clear_db():
+        with app.app_context():
+            # Apaga todas as tabelas
+            db.drop_all()
+            # Cria todas as tabelas novamente
+            db.create_all()
+        return "Banco de dados limpo e recriado com sucesso!"
     
     return app
