@@ -64,17 +64,16 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         full_text = texts[0].description.replace('\n', ' ')
         dados_extraidos = {}
 
-        # --- MELHOR PRÁTICA: Múltiplos padrões de Regex para maior compatibilidade ---
         padroes = {
             'cpf': [r'(\d{3}\.\d{3}\.\d{3}-\d{2})', r'(\d{3} \d{3} \d{3} \d{2})'],
             'data_nascimento': [
-                r'NASCIMENTO\s*(\d{2}/\d{2}/\d{4})',  # Padrão CNH
-                r'Data de Nasc\s*[:\s]*(\d{2}/\d{2}/\d{4})',  # Padrão RG
-                r'\b(\d{2}/\d{2}/(19[4-9]\d|200\d))\b' # Padrão genérico para datas de nascimento
+                r'NASCIMENTO\s*(\d{2}/\d{2}/\d{4})',
+                r'Data de Nasc\s*[:\s]*(\d{2}/\d{2}/\d{4})',
+                r'\b(\d{2}/\d{2}/(19[4-9]\d|200\d))\b'
             ],
             'nome': [
-                r'NOME\s*([A-Z\s]+?)\s*(?:REGISTRO|CPF)', # Padrão CNH
-                r'\bNOME\b\s*([A-Z\s]+)' # Padrão mais genérico
+                r'NOME\s*([A-Z\s]+?)\s*(?:REGISTRO|CPF)',
+                r'\bNOME\b\s*([A-Z\s]+)'
             ]
         }
 
@@ -82,15 +81,13 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
             for regex in regex_list:
                 match = re.search(regex, full_text, re.IGNORECASE)
                 if match:
-                    # Limpa e formata o resultado
                     valor = match.group(1).strip()
                     if campo == 'nome':
-                        # Remove quebras de linha substituídas e espaços extras
                         valor = re.sub(r'\s+', ' ', valor).strip()
                     dados_extraidos[campo] = valor
-                    break # Pára no primeiro padrão que funcionar para o campo
+                    break
 
-        if 'nome' not in dados_extraidos or 'cpf' not in dados_extraidos or 'data_nascimento' not in dados_extraidos:
+        if not all(key in dados_extraidos for key in ['nome', 'cpf', 'data_nascimento']):
             logger.warning(f"OCR V5: Falha ao extrair todos os campos. Encontrado: {dados_extraidos}")
             return {"status": "REPROVADO_OCR", "motivo": "Não foi possível extrair nome, CPF e data de nascimento."}
 
@@ -117,7 +114,6 @@ def extrair_ocr():
 @bp.route('/verificar', methods=['POST'])
 @require_api_key
 def verificar_pessoa_fisica():
-    # ... (O restante do arquivo permanece o mesmo, pois a lógica de orquestração já está correta)
     logger = current_app.logger
     if 'documento_frente' not in request.files or 'selfie' not in request.files:
         return jsonify({"erro": "Arquivos 'documento_frente' e 'selfie' são obrigatórios."}), 400
@@ -138,7 +134,7 @@ def verificar_pessoa_fisica():
     except Exception as e:
         logger.error(f"Erro no upload para o Cloudinary: {e}")
         return jsonify({"erro": f"Falha no upload de imagens: {e}"}), 500
-    
+
     arquivo_frente.seek(0)
     arquivo_selfie.seek(0)
     selfie_bytes = arquivo_selfie.read()

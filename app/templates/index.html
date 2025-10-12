@@ -6,7 +6,6 @@
     <title>Onboarding Digital Inteligente</title>
     <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
-        /* O CSS permanece o mesmo da versão anterior */
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
         :root { --primary-color: #007bff; --secondary-color: #f4f7f6; --text-color: #333; --light-text-color: #777; --border-color: #e0e0e0; --success-color: #28a745; --error-color: #dc3545; }
         body { font-family: 'Roboto', sans-serif; background-color: var(--secondary-color); margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
@@ -56,14 +55,13 @@
     </div>
 
     <script>
-        // --- Bloco de variáveis e funções utilitárias (sem alterações) ---
         let currentStep = 1; let capturedDocFrenteBlob = null; let capturedSelfieBlob = null; let activeStream = null; let ocrResultData = {}; let faceApiInterval = null;
         const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
         const iaLoader = document.getElementById('ia-loader');
         const startButton = document.getElementById('start-button');
         
-        async function loadFaceApiModels() { /* ...código inalterado... */ 
-            const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
+        async function loadFaceApiModels() {
+            const MODEL_URL = '/static/models';
             try {
                 console.log("LOG: Carregando modelos da IA de reconhecimento facial...");
                 iaLoader.style.display = 'block';
@@ -71,23 +69,24 @@
                 await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+                await faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL)
                 console.log("LOG: Modelos da IA carregados com sucesso!");
                 iaLoader.style.display = 'none';
                 startButton.disabled = false;
             } catch (error) {
                 console.error("LOG DE ERRO: Falha ao carregar modelos da IA.", error);
-                iaLoader.innerText = "Erro ao carregar IA. Tente recarregar a página.";
+                iaLoader.innerText = "Erro ao carregar IA. Verifique o console.";
             }
         }
         document.addEventListener('DOMContentLoaded', loadFaceApiModels);
 
-        function showStep(stepNumber) { /* ...código inalterado... */ 
+        function showStep(stepNumber) { 
             document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
             document.getElementById(`step-${stepNumber}`).classList.add('active');
             currentStep = stepNumber;
         }
 
-        function nextStep() { /* ...código inalterado... */ 
+        function nextStep() {
             if (activeStream) {
                 activeStream.getTracks().forEach(track => track.stop());
                 activeStream = null;
@@ -103,7 +102,7 @@
             else if (nextStepNumber === 5) { verificarPessoaFisica(); }
         }
         
-        function restart() { /* ...código inalterado... */ 
+        function restart() {
             capturedDocFrenteBlob = null; capturedSelfieBlob = null; ocrResultData = {};
             if (activeStream) { activeStream.getTracks().forEach(track => track.stop()); activeStream = null; }
             if (faceApiInterval) { clearInterval(faceApiInterval); faceApiInterval = null; }
@@ -112,7 +111,7 @@
             showStep(1);
         }
 
-        async function startCamera(type) { /* ...código inalterado... */
+        async function startCamera(type) {
              const isDoc = type.startsWith('doc');
             const webcamElement = document.getElementById(`${type}-webcam`);
             let constraints = { video: { facingMode: isDoc ? 'environment' : 'user' } };
@@ -137,7 +136,7 @@
             }
          }
 
-        function takePicture(type) { /* ...código inalterado... */ 
+        function takePicture(type) {
             const webcamElement = document.getElementById(`${type}-webcam`);
             const canvasElement = document.getElementById(`${type}-canvas`);
             const context = canvasElement.getContext('2d');
@@ -161,7 +160,7 @@
             }, 'image/jpeg', 0.9);
         }
 
-        async function extrairDadosDoDocumento(frenteBlob) { /* ...código inalterado... */ 
+        async function extrairDadosDoDocumento(frenteBlob) {
             const ocrLoader = document.getElementById('ocr-loader');
             const ocrForm = document.getElementById('ocr-form');
             const ocrInstruction = document.getElementById('ocr-instruction');
@@ -189,7 +188,7 @@
             }
         }
         
-        async function verificarPessoaFisica() { /* ...código inalterado... */ 
+        async function verificarPessoaFisica() {
             if (!capturedDocFrenteBlob || !capturedSelfieBlob) { alert("Ocorreu um erro na captura das imagens. Por favor, reinicie."); restart(); return; }
             const formData = new FormData();
             formData.append('nome', document.getElementById('nome').value);
@@ -204,7 +203,7 @@
             } catch (error) { alert("Erro de comunicação com o servidor. Tente novamente."); restart(); } finally { showStep(6); }
         }
 
-        function displayResults(data) { /* ...código inalterado... */ 
+        function displayResults(data) { 
             const resultContainer = document.getElementById('result-container');
             const finalStatusContainer = document.getElementById('final-status-container');
             resultContainer.innerHTML = '';
@@ -229,7 +228,6 @@
         
         function formatStepName(key) { return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); }
 
-        // --- MELHOR PRÁTICA: LIVENESS ATIVO COM MÁQUINA DE ESTADOS E VERIFICAÇÃO PRECISA ---
         async function runLivenessSequence() {
             const instructionEl = document.getElementById('selfie-instruction');
             const overlayEl = document.getElementById('selfie-overlay-shape');
@@ -239,9 +237,8 @@
 
             instructionEl.style.display = 'block';
             
-            // Gerenciador de estado dos desafios
             let challengeState = {
-                current: 'CENTER', // CENTER, BLINK, SMILE, DONE
+                current: 'CENTER',
                 faceCentered: false,
                 blinked: false,
                 smiled: false,
@@ -252,14 +249,7 @@
                 const leftEye = landmarks.getLeftEye();
                 const rightEye = landmarks.getRightEye();
                 const dist = (p1, p2) => Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
-                
-                const ear = (eye) => {
-                    const A = dist(eye[1], eye[5]);
-                    const B = dist(eye[2], eye[4]);
-                    const C = dist(eye[0], eye[3]);
-                    return (A + B) / (2.0 * C);
-                };
-
+                const ear = (eye) => (dist(eye[1], eye[5]) + dist(eye[2], eye[4])) / (2.0 * dist(eye[0], eye[3]));
                 return (ear(leftEye) + ear(rightEye)) / 2.0;
             };
 
@@ -278,35 +268,29 @@
                 const expressions = face.expressions;
                 const landmarks = face.landmarks;
 
-                // --- Desafio 1: Centralizar o Rosto ---
                 if (challengeState.current === 'CENTER') {
                     instructionEl.innerText = "Centralize seu rosto na moldura";
-                    
-                    // Verificação geométrica precisa
                     const centerX = box.x + box.width / 2;
                     const centerY = box.y + box.height / 2;
                     const isCentered = (centerX > webcamEl.videoWidth * 0.3 && centerX < webcamEl.videoWidth * 0.7) &&
                                      (centerY > webcamEl.videoHeight * 0.3 && centerY < webcamEl.videoHeight * 0.7);
-                    
                     const sufficientSize = box.width > webcamEl.videoWidth * 0.4;
 
                     if (isCentered && sufficientSize) {
                         overlayEl.classList.add('detected');
                         challengeState.faceCentered = true;
-                        challengeState.current = 'BLINK'; // Avança para o próximo estado
+                        challengeState.current = 'BLINK';
                     } else {
                         overlayEl.classList.remove('detected');
                         if (!sufficientSize) instructionEl.innerText = "Aproxime-se um pouco";
                     }
                 }
 
-                // --- Desafio 2: Piscar os Olhos ---
                 if (challengeState.current === 'BLINK') {
                     instructionEl.innerText = "Agora, PISQUE os olhos";
                     const ear = getEyeAspectRatio(landmarks);
                     const BLINK_THRESHOLD = 0.25;
 
-                    // Detecta uma piscada quando a proporção dos olhos cai drasticamente
                     if (ear < BLINK_THRESHOLD && (Date.now() - challengeState.lastBlinkTime > 1000)) {
                         challengeState.blinked = true;
                         challengeState.lastBlinkTime = Date.now();
@@ -314,26 +298,22 @@
                     }
                 }
 
-                // --- Desafio 3: Sorrir ---
                 if (challengeState.current === 'SMILE') {
                     instructionEl.innerText = "Para finalizar, SORRIA";
                     const SMILE_THRESHOLD = 0.8;
-
                     if (expressions.happy > SMILE_THRESHOLD) {
                         challengeState.smiled = true;
                         challengeState.current = 'DONE';
                     }
                 }
 
-                // --- Finalização ---
                 if (challengeState.current === 'DONE') {
                     instructionEl.innerText = "Excelente!";
                     clearInterval(faceApiInterval);
                     faceApiInterval = null;
-                    await sleep(1000); // Pequena pausa para o usuário ver o feedback
+                    await sleep(1000);
                     takePicture('selfie');
                 }
-
             }, 200);
         }
     </script>
