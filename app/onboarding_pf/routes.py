@@ -46,56 +46,85 @@ def get_vision_client():
         client = vision.ImageAnnotatorClient(credentials=credentials)
     else:
         logger.info("Autenticando no Google Vision via arquivo local (Desenvolvimento).")
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'google-credentials.json'
-        client = vision.ImageAnnotatorClient()
+        # Este caminho pode precisar de ajuste dependendo de onde você executa o servidor localmente
+        credentials_path = os.path.join(current_app.root_path, '..', 'google-credentials.json')
+        if os.path.exists(credentials_path):
+            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+            client = vision.ImageAnnotatorClient()
+        else:
+            logger.error("Arquivo de credenciais do Google (google-credentials.json) não encontrado para desenvolvimento local.")
+            client = None
     return client
 
 def analisar_documento_com_google_vision(doc_frente_bytes):
     logger = current_app.logger
-    logger.info("OCR V5: Iniciando análise multidocumento com Google Vision AI...")
+    logger.info("OCR V6: Iniciando análise de documento com lógica aprimorada...")
     try:
         client = get_vision_client()
+        if client is None:
+            return {"status": "ERRO_CONFIGURACAO", "motivo": "Serviço de OCR não configurado corretamente."}
+
         image = vision.Image(content=doc_frente_bytes)
         response = client.text_detection(image=image)
         texts = response.text_annotations
         if not texts:
-            return {"status": "REPROVADO_OCR", "motivo": "Não conseguimos ler os dados do documento."}
+            return {"status": "REPROVADO_OCR", "motivo": "Não foi possível detetar texto no documento."}
 
-        full_text = texts[0].description.replace('\n', ' ')
+        full_text_com_newlines = texts[0].description
+        logger.info(f"OCR V6: Texto completo extraído:\n---\n{full_text_com_newlines}\n---")
+        
+        # Normaliza o texto para facilitar a busca com regex
+        full_text_flat = full_text_com_newlines.replace('\n', ' ')
         dados_extraidos = {}
+        campos_faltando = []
 
-        padroes = {
-            'cpf': [r'(\d{3}\.\d{3}\.\d{3}-\d{2})', r'(\d{3} \d{3} \d{3} \d{2})'],
-            'data_nascimento': [
-                r'NASCIMENTO\s*(\d{2}/\d{2}/\d{4})',
-                r'Data de Nasc\s*[:\s]*(\d{2}/\d{2}/\d{4})',
-                r'\b(\d{2}/\d{2}/(19[4-9]\d|200\d))\b'
-            ],
-            'nome': [
-                r'NOME\s*([A-Z\s]+?)\s*(?:REGISTRO|CPF)',
-                r'\bNOME\b\s*([A-Z\s]+)'
-            ]
-        }
+        # --- Lógica de extração de CPF ---
+        cpf_padroes = [r'(\d{3}\.\d{3}\.\d{3}-\d{2})', r'(\d{3} \d{3} \d{3} \d{2})']
+        for padrao in cpf_padroes:
+            match = re.search(padrao, full_text_flat)
+            if match:
+                dados_extraidos['cpf'] = match.group(1)
+                break
+        
+        # --- Lógica de extração de Data de Nascimento ---
+        nasc_padroes = [
+            r'(?:DATA DE NASC|NASCIMENTO)\s*[:\s]*(\d{2}/\d{2}/\d{4})',
+            r'\b(\d{2}/\d{2}/(?:19|20)\d{2})\b' # Busca por qualquer data no formato, mais genérico
+        ]
+        for padrao in nasc_padroes:
+            match = re.search(padrao, full_text_flat, re.IGNORECASE)
+            if match:
+                dados_extraidos['data_nascimento'] = match.group(1)
+                break
 
-        for campo, regex_list in padroes.items():
-            for regex in regex_list:
-                match = re.search(regex, full_text, re.IGNORECASE)
+        # --- Lógica de extração de Nome (mais robusta) ---
+        nome_padroes = [
+            r'NOME\n([A-Z\s]+)', # Nome em nova linha após "NOME" (CNH)
+            r'NOME\s*([A-Z\s]+?)(?=\s\s|REGISTRO|CPF|DOC)', # Nome na mesma linha
+        ]
+        if 'nome' not in dados_extraidos:
+             for padrao in nome_padroes:
+                match = re.search(padrao, full_text_com_newlines, re.IGNORECASE)
                 if match:
-                    valor = match.group(1).strip()
-                    if campo == 'nome':
-                        valor = re.sub(r'\s+', ' ', valor).strip()
-                    dados_extraidos[campo] = valor
+                    nome = match.group(1).replace('\n', ' ').strip()
+                    dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
                     break
 
-        if not all(key in dados_extraidos for key in ['nome', 'cpf', 'data_nascimento']):
-            logger.warning(f"OCR V5: Falha ao extrair todos os campos. Encontrado: {dados_extraidos}")
-            return {"status": "REPROVADO_OCR", "motivo": "Não foi possível extrair nome, CPF e data de nascimento."}
+        # Verificação final e log detalhado
+        if 'nome' not in dados_extraidos: campos_faltando.append('nome')
+        if 'cpf' not in dados_extraidos: campos_faltando.append('cpf')
+        if 'data_nascimento' not in dados_extraidos: campos_faltando.append('data_nascimento')
 
-        logger.info(f"OCR V5: Dados extraídos com sucesso: {dados_extraidos}")
+        if campos_faltando:
+            motivo = f"Não foi possível extrair os seguintes campos: {', '.join(campos_faltando)}."
+            logger.warning(f"OCR V6: Falha na extração. {motivo} Encontrado: {dados_extraidos}")
+            return {"status": "REPROVADO_OCR", "motivo": motivo}
+
+        logger.info(f"OCR V6: Dados extraídos com sucesso: {dados_extraidos}")
         return {"status": "SUCESSO", "tipo_documento_identificado": "AUTO", "dados": dados_extraidos, "foto_3x4_base64": "..."}
     except Exception as e:
-        logger.error(f"OCR V5: Erro ao chamar a API do Google Vision: {e}")
-        return {"status": "ERRO_API", "motivo": "Falha na comunicação com o serviço de IA."}
+        logger.error(f"OCR V6: Erro inesperado na função de análise: {e}", exc_info=True)
+        return {"status": "ERRO_API", "motivo": "Ocorreu um erro interno no serviço de IA."}
 
 
 @bp.route('/extrair-ocr', methods=['POST'])
@@ -104,7 +133,11 @@ def extrair_ocr():
     if 'documento_frente' not in request.files:
         return jsonify({"erro": "O arquivo 'documento_frente' é obrigatório."}), 400
     
-    resultado_ocr = analisar_documento_com_google_vision(request.files['documento_frente'].read())
+    doc_bytes = request.files['documento_frente'].read()
+    if not doc_bytes:
+        return jsonify({"status": "REPROVADO_OCR", "motivo": "O arquivo do documento está vazio."}), 400
+
+    resultado_ocr = analisar_documento_com_google_vision(doc_bytes)
     
     if resultado_ocr.get('status') == 'SUCESSO':
         return jsonify(resultado_ocr)
