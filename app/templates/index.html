@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Onboarding Digital</title>
-    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
         :root { --primary-color: #007bff; --secondary-color: #f4f7f6; --text-color: #333; --light-text-color: #777; --border-color: #e0e0e0; --success-color: #28a745; --error-color: #dc3545; }
@@ -12,22 +11,22 @@
         .onboarding-container { width: 100%; max-width: 500px; background-color: #fff; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); overflow: hidden; text-align: center; }
         .step { display: none; padding: 40px; animation: fadeIn 0.5s; }
         .step.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .step h2 { color: var(--text-color); font-size: 24px; margin-top: 0; margin-bottom: 10px; }
         .step p { color: var(--light-text-color); font-size: 16px; line-height: 1.6; margin-bottom: 30px; }
         .button { width: 100%; padding: 15px; background-color: var(--primary-color); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.3s; margin-top: 10px; }
         .button:hover { filter: brightness(110%); }
-        .button:disabled { background-color: #a0a0a0; cursor: not-allowed; }
+        .button:disabled { background-color: #ccc; cursor: not-allowed; }
         .button.secondary { background-color: #e9ecef; color: var(--text-color); }
         .camera-container { border: 2px dashed var(--border-color); border-radius: 8px; padding: 20px; margin-top: 20px; }
-        .camera-feed { position: relative; width: 100%; max-width: 400px; margin: 0 auto; overflow: hidden; border-radius: 8px; }
-        video { width: 100%; display: block; }
+        .camera-feed { position: relative; width: 100%; max-width: 400px; margin: 0 auto; }
+        video { width: 100%; border-radius: 8px; }
         #selfie-webcam { transform: scaleX(-1); }
-        .camera-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-        .doc-overlay-shape { position: absolute; top: 50%; left: 50%; width: 85%; height: 70%; transform: translate(-50%, -50%); border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); }
-        .selfie-overlay-shape { position: absolute; top: 50%; left: 50%; width: 70%; padding-bottom: 85%; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); border: 3px dashed white; transition: all 0.5s; }
-        .selfie-overlay-shape.detected { border-color: var(--success-color); border-style: solid; }
-        .camera-instruction { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 500; z-index: 10; animation: fadeIn 0.5s; }
+        .camera-overlay { position: absolute; top: 50%; left: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); transition: border-color 0.5s; }
+        .doc-overlay { width: 85%; height: 70%; transform: translate(-50%, -50%); border: 3px dashed white; border-radius: 12px; }
+        .selfie-overlay { width: 70%; height: 85%; transform: translate(-50%, -50%); border: 3px dashed white; border-radius: 50%; }
+        .camera-overlay.detected { border-color: var(--success-color); border-style: solid; }
+        .camera-instruction { position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 500; z-index: 10; }
         .loader { border: 8px solid #f3f3f3; border-top: 8px solid var(--primary-color); border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .form-group { text-align: left; margin-bottom: 15px; }
@@ -38,7 +37,7 @@
         .result-body { padding: 15px; font-size: 14px; display: none; }
         .result-status { float: right; padding: 3px 8px; border-radius: 12px; color: white; font-size: 12px; }
         .result-status.APROVADO, .result-status.SUCESSO { background-color: var(--success-color); }
-        .result-status.PENDENCIA, .result-status.REPROVADO, .result-status.ERRO_API { background-color: var(--error-color); }
+        .result-status.PENDENCIA, .result-status.REPROVADO { background-color: var(--error-color); }
         .final-status { padding: 15px; border-radius: 8px; color: #fff; text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 20px; }
         .final-status.APROVADO { background-color: var(--success-color); }
         .final-status.PENDENCIA { background-color: var(--error-color); }
@@ -46,61 +45,12 @@
 </head>
 <body>
     <div class="onboarding-container">
-        <div class="step active" id="step-1">
-            <h2>Verificação de Identidade</h2>
-            <p>Vamos iniciar a validação. O processo é rápido e seguro.</p>
-            <button class="button" onclick="nextStep()" id="start-button">Iniciar Verificação</button>
-            <p id="ia-loader" style="display:none; color: var(--light-text-color); font-size: 14px;">Carregando modelos de IA...</p>
-        </div>
-        <div class="step" id="step-2">
-            <h2>Documento (Frente)</h2>
-            <p>Use a câmera traseira e posicione a FRENTE do seu documento na moldura.</p>
-            <div class="camera-container">
-                <div class="camera-feed">
-                    <video id="doc_frente-webcam" autoplay playsinline></video>
-                    <div class="camera-overlay"><div class="doc-overlay-shape"></div></div>
-                </div>
-                <canvas id="doc_frente-canvas" style="display:none;"></canvas>
-            </div>
-            <button class="button" onclick="takePicture('doc_frente')">Capturar Frente</button>
-        </div>
-        <div class="step" id="step-3">
-            <h2>Confirme seus Dados</h2>
-            <p id="ocr-instruction">Verifique se os dados extraídos do seu documento estão corretos.</p>
-            <div id="ocr-loader" class="loader"></div>
-            <div id="ocr-form" style="display:none;">
-                <div class="form-group"><label for="nome">Nome Completo:</label><input type="text" id="nome"></div>
-                <div class="form-group"><label for="data_nascimento">Data de Nascimento:</label><input type="text" id="data_nascimento"></div>
-                <div class="form-group"><label for="cpf">CPF:</label><input type="text" id="cpf"></div>
-                <button class="button" onclick="nextStep()">Dados Corretos, Avançar</button>
-            </div>
-        </div>
-        <div class="step" id="step-4">
-            <h2>Prova de Vida</h2>
-            <p>Use a câmera frontal e siga as instruções na tela.</p>
-            <div class="camera-container">
-                <div class="camera-feed">
-                    <video id="selfie-webcam" autoplay playsinline></video>
-                    <div class="camera-overlay">
-                        <div id="selfie-overlay-shape" class="selfie-overlay-shape"></div>
-                        <div id="selfie-instruction" class="camera-instruction" style="display: none;"></div>
-                    </div>
-                </div>
-                <canvas id="selfie-canvas" style="display:none;"></canvas>
-            </div>
-        </div>
-        <div class="step" id="step-5">
-            <h2>Analisando seus dados</h2>
-            <p>Realizando validações de segurança...</p>
-            <div class="loader"></div>
-        </div>
-        <div class="step" id="step-6">
-            <h2>Verificação Concluída</h2>
-            <div id="final-status-container"></div>
-            <p>Veja os detalhes da sua análise.</p>
-            <div id="result-container"></div>
-            <button class="button secondary" onclick="restart()">Iniciar Nova Verificação</button>
-        </div>
+        <div class="step active" id="step-1"><h2>Verificação de Identidade</h2><p>Para sua segurança, faremos uma rápida validação. Tenha um documento com foto em mãos.</p><button class="button" onclick="nextStep()">Iniciar Verificação</button></div>
+        <div class="step" id="step-2"><h2>Documento (Frente)</h2><p>Use a câmera traseira. Posicione a FRENTE do seu documento na moldura.</p><div class="camera-container"><div class="camera-feed"><video id="doc_frente-webcam" autoplay playsinline></video><div id="doc_frente-overlay" class="doc-overlay camera-overlay"></div></div><canvas id="doc_frente-canvas" style="display:none;"></canvas></div><button class="button" id="doc_frente-button" onclick="takePicture('doc_frente')">Capturar Frente</button></div>
+        <div class="step" id="step-3"><h2>Confirme seus Dados</h2><p id="ocr-instruction">Verifique se os dados extraídos do seu documento estão corretos.</p><div id="ocr-loader" class="loader"></div><div id="ocr-form" style="display:none;"><div class="form-group"><label for="nome">Nome Completo:</label><input type="text" id="nome"></div><div class="form-group"><label for="data_nascimento">Data de Nascimento:</label><input type="text" id="data_nascimento"></div><div class="form-group"><label for="cpf">CPF:</label><input type="text" id="cpf"></div><button class="button" onclick="nextStep()">Dados Corretos, Avançar</button></div></div>
+        <div class="step" id="step-4"><h2>Prova de Vida</h2><p>Use a câmera frontal e siga as instruções na tela.</p><div class="camera-container"><div class="camera-feed"><video id="selfie-webcam" autoplay playsinline></video><div id="selfie-overlay" class="selfie-overlay camera-overlay"></div><div id="selfie-instruction" class="camera-instruction" style="display: none;"></div></div><canvas id="selfie-canvas" style="display:none;"></canvas></div></div>
+        <div class="step" id="step-5"><h2>Analisando seus dados</h2><p>Realizando validações de segurança...</p><div class="loader"></div></div>
+        <div class="step" id="step-6"><h2>Verificação Concluída</h2><div id="final-status-container"></div><p>Veja os detalhes da sua análise.</p><div id="result-container"></div><button class="button secondary" onclick="restart()">Iniciar Nova Verificação</button></div>
     </div>
     <script>
         let currentStep = 1;
@@ -108,33 +58,11 @@
         let capturedSelfieBlob = null;
         let activeStream = null;
         let ocrResultData = {};
-        let faceApiInterval = null;
+
         const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-        // --- LÓGICA DE CARREGAMENTO DA IA ---
-        const iaLoader = document.getElementById('ia-loader');
-        const startButton = document.getElementById('start-button');
-        
-        async function loadFaceApiModels() {
-            const MODEL_URL = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
-            try {
-                console.log("LOG: Carregando modelos da IA de reconhecimento facial...");
-                iaLoader.style.display = 'block';
-                startButton.disabled = true;
-                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-                await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-                await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
-                console.log("LOG: Modelos da IA carregados com sucesso!");
-                iaLoader.style.display = 'none';
-                startButton.disabled = false;
-            } catch (error) {
-                console.error("LOG DE ERRO: Falha ao carregar modelos da IA.", error);
-                iaLoader.innerText = "Erro ao carregar IA. Tente recarregar a página.";
-            }
-        }
-        document.addEventListener('DOMContentLoaded', loadFaceApiModels);
-
         function showStep(stepNumber) {
+            console.log(`LOG: Mudando para a etapa ${stepNumber}`);
             document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
             document.getElementById(`step-${stepNumber}`).classList.add('active');
             currentStep = stepNumber;
@@ -145,10 +73,6 @@
                 activeStream.getTracks().forEach(track => track.stop());
                 activeStream = null;
             }
-            if (faceApiInterval) {
-                clearInterval(faceApiInterval);
-                faceApiInterval = null;
-            }
             const nextStepNumber = currentStep + 1;
             showStep(nextStepNumber);
             if (nextStepNumber === 2) { startCamera('doc_frente'); } 
@@ -157,6 +81,7 @@
         }
         
         function restart() {
+            console.log("LOG: Reiniciando o fluxo.");
             capturedDocFrenteBlob = null;
             capturedSelfieBlob = null;
             ocrResultData = {};
@@ -164,13 +89,6 @@
                 activeStream.getTracks().forEach(track => track.stop());
                 activeStream = null;
             }
-            if (faceApiInterval) {
-                clearInterval(faceApiInterval);
-                faceApiInterval = null;
-            }
-            // Limpa os resultados para uma nova verificação
-            document.getElementById('result-container').innerHTML = '';
-            document.getElementById('final-status-container').innerHTML = '';
             showStep(1);
         }
 
@@ -178,21 +96,26 @@
             const isDoc = type.startsWith('doc');
             const webcamElement = document.getElementById(`${type}-webcam`);
             let constraints = { video: { facingMode: isDoc ? 'environment' : 'user' } };
+            console.log("LOG: Tentativa 1 - Pedindo câmera ideal:", constraints);
             try {
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                console.log("LOG: Câmera ideal iniciada com sucesso!");
                 webcamElement.srcObject = stream;
                 activeStream = stream;
                 return true;
             } catch (err) {
-                console.warn(`Falha ao obter câmera '${isDoc ? 'environment' : 'user'}'. Tentando alternativa.`);
-                constraints.video = { facingMode: undefined }; // Tenta a câmera padrão
+                console.warn(`LOG AVISO: Falha ao obter câmera '${isDoc ? 'environment' : 'user'}'. Erro: ${err.name}. Tentando câmera alternativa.`);
+                constraints = { video: {} };
+                console.log("LOG: Tentativa 2 - Pedindo qualquer câmera disponível (fallback).");
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    console.log("LOG: Câmera alternativa iniciada com sucesso!");
                     webcamElement.srcObject = stream;
                     activeStream = stream;
                     return true;
                 } catch (finalErr) {
-                    alert("Erro definitivo ao acessar a câmera. Verifique as permissões no seu navegador.");
+                    console.error("LOG DE ERRO: Falha final ao iniciar a câmera.", finalErr);
+                    alert("Erro definitivo ao acessar a câmera. Nenhuma câmera foi encontrada ou a permissão foi negada em definitivo.");
                     restart();
                     return false;
                 }
@@ -200,6 +123,7 @@
         }
 
         function takePicture(type) {
+            console.log(`LOG: Capturando foto para '${type}'`);
             const webcamElement = document.getElementById(`${type}-webcam`);
             const canvasElement = document.getElementById(`${type}-canvas`);
             const context = canvasElement.getContext('2d');
@@ -212,6 +136,7 @@
                 context.drawImage(webcamElement, 0, 0, canvasElement.width, canvasElement.height);
             }
             canvasElement.toBlob(function(blob) {
+                console.log(`LOG: Blob da imagem '${type}' criado com sucesso.`);
                 if (type === 'doc_frente') {
                     capturedDocFrenteBlob = blob;
                     showStep(3);
@@ -223,7 +148,27 @@
             }, 'image/jpeg', 0.9);
         }
 
+        async function runLivenessSequence() {
+            const instructionEl = document.getElementById('selfie-instruction');
+            const overlayEl = document.getElementById('selfie-overlay');
+            console.log("LOG: Iniciando sequência de Liveness Ativo.");
+            const cameraStarted = await startCamera('selfie');
+            if (!cameraStarted) { return; }
+            instructionEl.style.display = 'block';
+            instructionEl.innerText = "Centralize seu rosto na moldura";
+            overlayEl.style.borderColor = "white";
+            await sleep(2500);
+            instructionEl.innerText = "Excelente!";
+            overlayEl.classList.add('detected');
+            await sleep(1500);
+            instructionEl.innerText = "Agora, SORRIA!";
+            await sleep(2000);
+            takePicture('selfie');
+            overlayEl.classList.remove('detected');
+        }
+
         async function extrairDadosDoDocumento(frenteBlob) {
+            console.log("LOG: Enviando documento para OCR...");
             const ocrLoader = document.getElementById('ocr-loader');
             const ocrForm = document.getElementById('ocr-form');
             const ocrInstruction = document.getElementById('ocr-instruction');
@@ -235,6 +180,7 @@
             try {
                 const response = await fetch('/onboarding/pf/extrair-ocr', { method: 'POST', body: formData });
                 ocrResultData = await response.json();
+                console.log("LOG: Dados recebidos do OCR:", ocrResultData);
                 if (response.status !== 200 || ocrResultData.status !== 'SUCESSO') {
                     throw new Error(ocrResultData.motivo || 'Falha desconhecida no OCR');
                 }
@@ -245,13 +191,15 @@
                 ocrForm.style.display = 'block';
                 ocrInstruction.innerText = 'Verifique se os dados extraídos do seu documento estão corretos.';
             } catch (error) {
-                alert("Falha na Leitura: " + error.message + ". Por favor, tente novamente com uma foto mais nítida.");
+                console.error("LOG DE ERRO: Falha ao extrair dados do OCR.", error);
+                alert("Falha na Leitura: " + error.message);
                 showStep(2); 
                 startCamera('doc_frente');
             }
         }
         
         async function verificarPessoaFisica() {
+            console.log("LOG: Iniciando verificação final completa.");
             if (!capturedDocFrenteBlob || !capturedSelfieBlob) {
                 alert("Ocorreu um erro na captura das imagens. Por favor, reinicie.");
                 restart(); 
@@ -268,9 +216,11 @@
             try {
                 const response = await fetch('/onboarding/pf/verificar', { method: 'POST', body: formData });
                 const data = await response.json();
+                console.log("LOG: Resposta final recebida do backend:", data);
                 displayResults(data);
             } catch (error) { 
-                alert("Erro de comunicação com o servidor. Tente novamente.");
+                console.error("LOG DE ERRO: Falha na verificação final.", error); 
+                alert("Erro de comunicação com o servidor.");
                 restart(); 
             } finally {
                 showStep(6);
@@ -278,6 +228,7 @@
         }
 
         function displayResults(data) {
+            console.log("LOG: Exibindo resultados na tela.");
             const resultContainer = document.getElementById('result-container');
             const finalStatusContainer = document.getElementById('final-status-container');
             resultContainer.innerHTML = '';
@@ -302,61 +253,6 @@
         
         function formatStepName(key) { 
             return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); 
-        }
-
-        // --- LIVENESS ATIVO COM IA EM TEMPO REAL ---
-        async function runLivenessSequence() {
-            const instructionEl = document.getElementById('selfie-instruction');
-            const overlayEl = document.getElementById('selfie-overlay-shape');
-            const webcamEl = document.getElementById('selfie-webcam');
-            
-            const cameraStarted = await startCamera('selfie');
-            if (!cameraStarted) { return; }
-
-            instructionEl.style.display = 'block';
-            let challenge = 'centralizar'; // Desafio inicial
-
-            faceApiInterval = setInterval(async () => {
-                const detections = await faceapi.detectAllFaces(webcamEl, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceExpressions();
-                
-                if (detections.length === 0) {
-                    instructionEl.innerText = "Nenhum rosto detectado";
-                    overlayEl.classList.remove('detected');
-                    return;
-                }
-                
-                const face = detections[0]; 
-                const expressions = face.expressions;
-
-                if (challenge === 'centralizar') {
-                    instructionEl.innerText = "Centralize seu rosto na moldura";
-                    if (face.detection.score > 0.8) { 
-                        overlayEl.classList.add('detected');
-                        challenge = 'piscar'; 
-                        await sleep(1000); 
-                    } else {
-                        overlayEl.classList.remove('detected');
-                    }
-                }
-                
-                if (challenge === 'piscar') {
-                    instructionEl.innerText = "Fique neutro e PISQUE os olhos";
-                    if (expressions.neutral > 0.8) {
-                        challenge = 'sorrir';
-                        await sleep(2000);
-                    }
-                }
-
-                if (challenge === 'sorrir') {
-                    instructionEl.innerText = "Agora, SORRIA!";
-                    if (expressions.happy > 0.7) {
-                        instructionEl.innerText = "Excelente!";
-                        clearInterval(faceApiInterval);
-                        faceApiInterval = null;
-                        takePicture('selfie');
-                    }
-                }
-            }, 200);
         }
     </script>
 </body>
