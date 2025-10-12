@@ -1,10 +1,23 @@
 # requirements.txt
 
+# Framework principal
 Flask==2.3.3
-requests
-python-dotenv
+
+# Para fazer requisições HTTP (ex: serviços de BGC)
+requests==2.31.0
+
+# Para gerenciar variáveis de ambiente a partir de um arquivo .env
+python-dotenv==1.0.1
+
+# Integração de banco de dados com Flask e SQLAlchemy
 Flask-SQLAlchemy==2.5.1
 SQLAlchemy<2.0
-psycopg2-binary
-google-cloud-vision
-cloudinary
+
+# Driver para o banco de dados PostgreSQL
+psycopg2-binary==2.9.9
+
+# Cliente da API do Google Cloud Vision para o OCR
+google-cloud-vision==3.7.2
+
+# Cliente da API da Cloudinary para upload de imagens
+cloudinary==1.40.0
