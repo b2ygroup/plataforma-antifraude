@@ -307,8 +307,13 @@
                 ocrForm.style.display = 'block';
                 ocrInstruction.innerText = 'Verifique se os dados extraídos do seu documento estão corretos.';
             } catch (error) {
-                alert("Falha na Leitura: " + error.message + ". Por favor, tente novamente.");
-                restart();
+                const tryAgain = confirm(`Falha na Leitura: ${error.message}\nA foto pode estar desfocada ou com reflexos. Deseja tentar novamente?`);
+                if (tryAgain) {
+                    showStep(2);
+                    startCamera('doc_frente');
+                } else {
+                    restart();
+                }
             }
         }
         
