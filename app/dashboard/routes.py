@@ -19,26 +19,35 @@ def get_verifications():
     e as retorna em formato JSON para o frontend.
     """
     logger = current_app.logger
-    verifications = Verificacao.query.order_by(Verificacao.timestamp.desc()).all()
-    
-    data = []
-    for v in verifications:
-        try:
-            # Tenta carregar o JSON. Se falhar, pula para o próximo registro.
-            dados_completos = json.loads(v.resultado_completo_json)
-            
-            data.append({
-                'id': v.id,
-                'tipo': v.tipo_verificacao,
-                'status': v.status_geral,
-                'timestamp': v.timestamp.strftime('%d/%m/%Y %H:%M:%S'),
-                'dados_completos': dados_completos,
-                'doc_frente_url': v.doc_frente_url,
-                'selfie_url': v.selfie_url
-            })
-        except json.JSONDecodeError:
-            logger.error(f"Erro de JSON: Não foi possível processar o registro de verificação com ID {v.id}. O JSON salvo está malformado.")
-            # Continua para o próximo item do loop, ignorando o registro quebrado.
-            continue
-            
-    return jsonify(data)
+    try:
+        verifications = Verificacao.query.order_by(Verificacao.timestamp.desc()).all()
+        
+        data = []
+        for v in verifications:
+            try:
+                # Verifica se os campos não são nulos antes de processar
+                dados_completos = json.loads(v.resultado_completo_json) if v.resultado_completo_json else {}
+                timestamp_str = v.timestamp.strftime('%d/%m/%Y %H:%M:%S') if v.timestamp else 'Data indisponível'
+                
+                # O SQLAlchemy já converte o tipo JSON para um dicionário Python aqui.
+                dados_extra = v.dados_extra_json if v.dados_extra_json else {}
+
+                data.append({
+                    'id': v.id,
+                    'tipo': v.tipo_verificacao,
+                    'status': v.status_geral,
+                    'timestamp': timestamp_str,
+                    'dados_completos': dados_completos,
+                    'doc_frente_url': v.doc_frente_url,
+                    'selfie_url': v.selfie_url,
+                    'dados_extra': dados_extra  # Envia os dados extras para o frontend
+                })
+            except Exception as e:
+                logger.error(f"Erro ao processar o registo de verificação com ID {v.id}: {e}")
+                continue
+                
+        return jsonify(data)
+        
+    except Exception as e:
+        logger.error(f"Erro 500 na API /api/verifications: Falha ao consultar a base de dados. Detalhes: {e}", exc_info=True)
+        return jsonify({"erro": "Ocorreu um erro interno no servidor ao buscar os dados."}), 500
