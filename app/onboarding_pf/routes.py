@@ -60,28 +60,44 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         full_text_com_newlines = response.text_annotations[0].description
         logger.info(f"OCR V11: Texto completo extraído:\n---\n{full_text_com_newlines}\n---")
 
-        # Normalização para reduzir ruídos do OCR
+        # --- Limpeza e normalização do texto ---
         texto_limpo = full_text_com_newlines.upper()
         texto_limpo = re.sub(r'[^A-ZÀ-Ú0-9\s:/.-]', ' ', texto_limpo)
         texto_limpo = re.sub(r'\s+', ' ', texto_limpo).strip()
+        logger.info(f"OCR texto limpo (normalizado): {texto_limpo[:500]}...")
 
         dados_extraidos = {}
 
-        # --- EXTRAÇÃO DO NOME ---
+        # --- EXTRAÇÃO DO NOME (versão robusta e tolerante) ---
         nome_match = re.search(
-            r'(?:NOME\s*(?:E\s*SOBRENOME)?\s*)([A-ZÀ-Ú\s]{3,})(?=\s*(?:HABILITAÇÃO|DOC|DATA|FILIAÇÃO|CPF|VALIDADE|NASCIMENTO))',
+            r'NOME\s*(?:E\s*SOBRENOME)?[^\w]{0,5}\s*([A-ZÀ-Ú\s]{3,60})(?=\s*(?:\d{1,2}\s*DATA|DATA|HABILITA|CPF|FILIA|VALIDA|DOC|NASC|EMISS))',
             texto_limpo,
             re.IGNORECASE
         )
+
+        if not nome_match:
+            # fallback: tenta achar o primeiro bloco de texto em caixa alta após a palavra "NOME"
+            nome_match = re.search(
+                r'NOME\s*(?:E\s*SOBRENOME)?[^\w]{0,5}\s*([A-ZÀ-Ú\s]{3,60})',
+                texto_limpo,
+                re.IGNORECASE
+            )
+
         if nome_match:
             nome = nome_match.group(1).strip()
             nome = re.sub(r'\s+', ' ', nome)
             dados_extraidos['nome'] = nome
+            logger.info(f"OCR V11: Nome identificado: {nome}")
+        else:
+            logger.warning("OCR V11: Campo 'nome' não identificado no texto limpo.")
 
         # --- EXTRAÇÃO DO CPF ---
         cpf_match = re.search(r'(\d{3}\.\d{3}\.\d{3}-\d{2})', texto_limpo)
         if cpf_match:
             dados_extraidos['cpf'] = cpf_match.group(1)
+            logger.info(f"OCR V11: CPF identificado: {dados_extraidos['cpf']}")
+        else:
+            logger.warning("OCR V11: Campo 'cpf' não identificado no texto limpo.")
 
         # --- EXTRAÇÃO DA DATA DE NASCIMENTO ---
         nasc_match = re.search(
@@ -89,11 +105,17 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
             texto_limpo,
             re.IGNORECASE
         )
+        if not nasc_match:
+            # fallback: busca a primeira data no formato dd/mm/aaaa no texto
+            nasc_match = re.search(r'(\d{2}/\d{2}/\d{4})', texto_limpo)
         if nasc_match:
             dados_extraidos['data_nascimento'] = nasc_match.group(1)
+            logger.info(f"OCR V11: Data de nascimento identificada: {dados_extraidos['data_nascimento']}")
+        else:
+            logger.warning("OCR V11: Campo 'data_nascimento' não identificado no texto limpo.")
 
+        # --- Validação final ---
         campos_faltando = [campo for campo in ['nome', 'cpf', 'data_nascimento'] if campo not in dados_extraidos]
-
         if campos_faltando:
             motivo = f"Não foi possível extrair os seguintes campos: {', '.join(campos_faltando)}."
             logger.warning(f"OCR V11: Falha na extração. {motivo}")
