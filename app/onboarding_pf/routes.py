@@ -21,6 +21,7 @@ cloudinary.config(
     secure=True
 )
 
+
 def get_vision_client():
     logger = current_app.logger
     google_creds_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
@@ -40,39 +41,57 @@ def get_vision_client():
             client = None
     return client
 
+
 def analisar_documento_com_google_vision(doc_frente_bytes):
     logger = current_app.logger
     logger.info("OCR V11: Iniciando análise com regex de alta precisão para CNH...")
+
     try:
         client = get_vision_client()
-        if client is None: return {"status": "ERRO_CONFIGURACAO", "motivo": "Serviço de OCR não configurado."}
-        
+        if client is None:
+            return {"status": "ERRO_CONFIGURACAO", "motivo": "Serviço de OCR não configurado."}
+
         image = vision.Image(content=doc_frente_bytes)
         response = client.text_detection(image=image)
-        if not response.text_annotations: return {"status": "REPROVADO_OCR", "motivo": "Não foi possível detetar texto no documento."}
+
+        if not response.text_annotations:
+            return {"status": "REPROVADO_OCR", "motivo": "Não foi possível detectar texto no documento."}
 
         full_text_com_newlines = response.text_annotations[0].description
         logger.info(f"OCR V11: Texto completo extraído:\n---\n{full_text_com_newlines}\n---")
-        
-        full_text_flat = full_text_com_newlines.replace('\n', ' ')
-        dados_extraidos = {}
-        
-        # NOME: Padrão específico que procura o nome entre "NOME E SOBRENOME" e a próxima linha que parece ser um campo
-        nome_match = re.search(r'(?:NOME E SOBRENOME|NOME)\n([A-Z\s\n]+?)\n(?:HABILITAÇÃO|DOC DE IDENTIDADE|DATA|FILIAÇÃO)', full_text_com_newlines)
-        if nome_match:
-            nome = nome_match.group(1).replace('\n', ' ').strip()
-            dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
 
-        # CPF: Padrão que busca o CPF formatado
-        cpf_match = re.search(r'(\d{3}\.\d{3}\.\d{3}-\d{2})', full_text_flat)
+        # Normalização para reduzir ruídos do OCR
+        texto_limpo = full_text_com_newlines.upper()
+        texto_limpo = re.sub(r'[^A-ZÀ-Ú0-9\s:/.-]', ' ', texto_limpo)
+        texto_limpo = re.sub(r'\s+', ' ', texto_limpo).strip()
+
+        dados_extraidos = {}
+
+        # --- EXTRAÇÃO DO NOME ---
+        nome_match = re.search(
+            r'(?:NOME\s*(?:E\s*SOBRENOME)?\s*)([A-ZÀ-Ú\s]{3,})(?=\s*(?:HABILITAÇÃO|DOC|DATA|FILIAÇÃO|CPF|VALIDADE|NASCIMENTO))',
+            texto_limpo,
+            re.IGNORECASE
+        )
+        if nome_match:
+            nome = nome_match.group(1).strip()
+            nome = re.sub(r'\s+', ' ', nome)
+            dados_extraidos['nome'] = nome
+
+        # --- EXTRAÇÃO DO CPF ---
+        cpf_match = re.search(r'(\d{3}\.\d{3}\.\d{3}-\d{2})', texto_limpo)
         if cpf_match:
             dados_extraidos['cpf'] = cpf_match.group(1)
 
-        # DATA DE NASCIMENTO: Padrão que busca a data após "NASCIMENTO" ou "DATA, LOCAL E UF DE NASCIMENTO"
-        nasc_match = re.search(r'(?:NASCIMENTO|DATA, LOCAL E UF DE NASCIMENTO)\s*\n\s*(\d{2}/\d{2}/\d{4})', full_text_com_newlines, re.IGNORECASE)
+        # --- EXTRAÇÃO DA DATA DE NASCIMENTO ---
+        nasc_match = re.search(
+            r'(?:NASCIMENTO|DATA\s*,?\s*LOCAL\s*E\s*UF\s*DE\s*NASCIMENTO)\s*(\d{2}/\d{2}/\d{4})',
+            texto_limpo,
+            re.IGNORECASE
+        )
         if nasc_match:
             dados_extraidos['data_nascimento'] = nasc_match.group(1)
-        
+
         campos_faltando = [campo for campo in ['nome', 'cpf', 'data_nascimento'] if campo not in dados_extraidos]
 
         if campos_faltando:
@@ -82,6 +101,7 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
 
         logger.info(f"OCR V11: Dados extraídos com sucesso: {dados_extraidos}")
         return {"status": "SUCESSO", "dados": dados_extraidos}
+
     except Exception as e:
         logger.error(f"OCR V11: Erro inesperado na função de análise: {e}", exc_info=True)
         return {"status": "ERRO_API", "motivo": "Ocorreu um erro interno no serviço de IA."}
@@ -92,14 +112,17 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
 def extrair_ocr():
     if 'documento_frente' not in request.files:
         return jsonify({"erro": "O arquivo 'documento_frente' é obrigatório."}), 400
+
     doc_bytes = request.files['documento_frente'].read()
     if not doc_bytes:
         return jsonify({"status": "REPROVADO_OCR", "motivo": "O arquivo do documento está vazio."}), 400
+
     resultado_ocr = analisar_documento_com_google_vision(doc_bytes)
     if resultado_ocr.get('status') == 'SUCESSO':
         return jsonify(resultado_ocr)
     else:
         return jsonify(resultado_ocr), 400
+
 
 @bp.route('/verificar', methods=['POST'])
 @require_api_key
@@ -107,7 +130,7 @@ def verificar_pessoa_fisica():
     logger = current_app.logger
     if 'documento_frente' not in request.files or 'selfie_documento' not in request.files or 'selfie_liveness' not in request.files:
         return jsonify({"erro": "Todos os arquivos (documento_frente, selfie_documento, selfie_liveness) são obrigatórios."}), 400
-    
+
     nome_cliente = request.form.get('nome', 'N/A')
     cpf_cliente = request.form.get('cpf', 'N/A')
     foto_doc_b64 = request.form.get('foto_documento_b64', '')
@@ -116,7 +139,7 @@ def verificar_pessoa_fisica():
     arquivo_selfie_liveness = request.files['selfie_liveness']
 
     logger.info(f'ONBOARDING com Score: Iniciando fluxo para {nome_cliente}')
-    
+
     try:
         doc_frente_url = cloudinary.uploader.upload(arquivo_frente, folder="onboarding_docs").get('secure_url')
         selfie_doc_url = cloudinary.uploader.upload(arquivo_selfie_doc, folder="onboarding_selfies_docs").get('secure_url')
@@ -124,14 +147,14 @@ def verificar_pessoa_fisica():
     except Exception as e:
         logger.error(f"Erro no upload para o Cloudinary: {e}", exc_info=True)
         return jsonify({"erro": f"Falha no upload de imagens: {e}"}), 500
-    
+
     arquivo_frente.seek(0); frente_bytes = arquivo_frente.read()
     arquivo_selfie_doc.seek(0); selfie_doc_bytes = arquivo_selfie_doc.read()
     arquivo_selfie_liveness.seek(0); selfie_liveness_bytes = arquivo_selfie_liveness.read()
-    
+
     workflow_executado = {}
     status_geral = "APROVADO"
-    
+
     etapas = {
         'receita_federal_pep': data_service.check_receita_federal_pep(cpf_cliente),
         'liveness_passivo': biometrics_service.check_liveness_passivo(selfie_liveness_bytes),
@@ -145,12 +168,12 @@ def verificar_pessoa_fisica():
         workflow_executado[nome_etapa] = resultado
         if resultado.get('status') != 'APROVADO':
             status_geral = "PENDENCIA"
-            
+
     resposta_final = {"status_geral": status_geral, "workflow_executado": workflow_executado}
-    
+
     score_result = score_service.calculate_risk_score(workflow_executado)
     resposta_final["risk_score"] = score_result
-    
+
     try:
         nova_verificacao = Verificacao(
             tipo_verificacao='PF',
