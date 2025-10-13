@@ -57,50 +57,37 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         full_text_flat = full_text_com_newlines.replace('\n', ' ')
         dados_extraidos = {}
         
-        # --- LÓGICA DE EXTRAÇÃO HÍBRIDA (Específica > Genérica) ---
-
         # NOME: Tenta primeiro o padrão mais exato de CNH, depois um mais genérico.
         nome_match = re.search(r'(?:NOME E SOBRENOME|NOME)\n([A-Z\s\n]+?)\n(?:[A-Z]\n\d{2}/\d{2}/\d{4}|DOC DE IDENTIDADE)', full_text_com_newlines)
         if nome_match:
             nome = nome_match.group(1).replace('\n', ' ').strip()
             dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
-        else: # Fallback para outros padrões
-            nome_padroes = [
-                r'(?:NOME COMPLETO)\n*([A-Z\s]+?)(?=\s\s|\n[A-Z_]{3,})'
-            ]
+        else:
+            nome_padroes = [r'(?:NOME COMPLETO)\n*([A-Z\s]+?)(?=\s\s|\n[A-Z_]{3,})']
             for padrao in nome_padroes:
                 match = re.search(padrao, full_text_com_newlines)
                 if match:
                     nome = match.group(1).replace('\n', ' ').strip()
-                    dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
-                    break
+                    dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome); break
 
         # CPF
         cpf_match = re.search(r'(\d{3}\.\d{3}\.\d{3}-\d{2})', full_text_flat)
         if cpf_match:
             dados_extraidos['cpf'] = cpf_match.group(1)
-        else: # Fallback para CPF sem formatação
+        else:
             cpf_match_unformatted = re.search(r'\b(\d{11})\b', full_text_flat)
-            if cpf_match_unformatted:
-                dados_extraidos['cpf'] = cpf_match_unformatted.group(1)
+            if cpf_match_unformatted: dados_extraidos['cpf'] = cpf_match_unformatted.group(1)
 
         # DATA DE NASCIMENTO
-        # Procura explicitamente por 'NASCIMENTO' seguido por uma data na linha seguinte (padrão CNH)
         nasc_match = re.search(r'NASCIMENTO\s*\n\s*(\d{2}/\d{2}/\d{4})', full_text_com_newlines, re.IGNORECASE)
         if nasc_match:
             dados_extraidos['data_nascimento'] = nasc_match.group(1)
-        else: # Fallback para outros padrões
-            nasc_padroes = [
-                r'(?:DATA DE NASC)\s*[:\s]*(\d{2}/\d{2}/\d{4})',
-                r'(\d{2}/\d{2}/(?:19|20)\d{2})' # Pega a primeira data válida no documento
-            ]
+        else:
+            nasc_padroes = [r'(?:DATA DE NASC)\s*[:\s]*(\d{2}/\d{2}/\d{4})', r'(\d{2}/\d{2}/(?:19|20)\d{2})']
             for padrao in nasc_padroes:
                 match = re.search(padrao, full_text_flat, re.IGNORECASE)
-                if match:
-                    dados_extraidos['data_nascimento'] = match.group(1)
-                    break
+                if match: dados_extraidos['data_nascimento'] = match.group(1); break
         
-        # Verificação final
         campos_faltando = [campo for campo in ['nome', 'cpf', 'data_nascimento'] if campo not in dados_extraidos]
 
         if campos_faltando:
