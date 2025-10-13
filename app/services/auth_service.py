@@ -14,7 +14,9 @@ def authenticate_user(cpf: str, selfie_atual_bytes: bytes):
 
     # Passo 1: Encontrar a verificação de onboarding original do usuário pelo CPF.
     logger.info(f"AUTH_SERVICE: Buscando verificação original para o CPF: {cpf}")
+    # Filtra por verificações de Pessoa Física (PF) que contenham o CPF nos dados de entrada.
     verificacao_original = Verificacao.query.filter(
+        Verificacao.tipo_verificacao == 'PF',
         Verificacao.dados_entrada_json.contains(cpf)
     ).order_by(Verificacao.timestamp.desc()).first()
 
@@ -43,9 +45,8 @@ def authenticate_user(cpf: str, selfie_atual_bytes: bytes):
     # Passo 3: Face Match (Selfie Atual vs. Selfie do Onboarding)
     # A função check_facematch espera bytes, mas para a foto original temos uma URL.
     # Em um sistema real, faríamos o download da selfie_onboarding_url para comparar.
-    # Aqui, vamos simular essa comparação.
+    # Aqui, vamos simular essa comparação, passando a URL como se fosse a foto em base64.
     logger.info("AUTH_SERVICE: Simulando Face Match entre a selfie atual e a selfie do onboarding.")
-    # Vamos passar a URL como se fosse a foto em base64 para a função de simulação.
     resultado_face_match = biometrics_service.check_facematch(selfie_onboarding_url, selfie_atual_bytes)
     workflow_executado["face_match_transacional"] = resultado_face_match
     if resultado_face_match["status"] != "APROVADO":

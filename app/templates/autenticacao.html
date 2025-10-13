@@ -14,7 +14,7 @@
         .step { display: none; animation: fadeIn 0.5s; }
         .step.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        h1 { color: var(--text-color); }
+        h1, h2 { color: var(--text-color); }
         p { color: #6c757d; }
         .form-group { margin-bottom: 20px; text-align: left; }
         label { font-weight: 500; display: block; margin-bottom: 5px; }
@@ -28,10 +28,10 @@
         .selfie-overlay-shape { position: absolute; top: 50%; left: 50%; width: 70%; padding-bottom: 85%; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); border: 3px dashed white; transition: all 0.5s; }
         .selfie-overlay-shape.detected { border-color: var(--success-color); border-style: solid; }
         .camera-instruction { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 500; z-index: 10; }
-        .loader { border: 6px solid #f3f3f3; border-top: 6px solid var(--primary-color); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; display: none; }
+        .loader { border: 6px solid #f3f3f3; border-top: 6px solid var(--primary-color); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
         .final-status { padding: 20px; border-radius: 8px; color: #fff; text-align: center; font-size: 1.8em; font-weight: bold; margin: 20px 0; }
         .final-status.APROVADO { background-color: var(--success-color); }
-        .final-status.PENDENCIA { background-color: var(--error-color); }
+        .final-status.PENDENCIA, .final-status.FALHA { background-color: var(--error-color); }
         .nav-link { text-align: center; margin-top: 30px; }
         .nav-link a { color: var(--primary-color); text-decoration: none; font-weight: 500; }
     </style>
@@ -51,7 +51,7 @@
 
         <div class="step" id="step-2">
             <h2>Prova de Vida</h2>
-            <p>Centralize seu rosto e, quando solicitado, SORRIA.</p>
+            <p>Centralize seu rosto e, quando for solicitado, SORRIA.</p>
             <div class="camera-container">
                 <div class="camera-feed">
                     <video id="selfie-webcam" autoplay playsinline></video>
@@ -84,18 +84,15 @@
     <script>
         const API_KEY = 'Le010584'; // <-- SUBSTITUA AQUI PELA SUA CHAVE REAL DA VERSEL
 
-        // Elementos da UI
         const iaLoader = document.getElementById('ia-loader');
         const startAuthButton = document.getElementById('start-auth-button');
         const cpfInput = document.getElementById('cpf-input');
         const finalStatusContainer = document.getElementById('final-status-container');
 
-        // Variáveis de estado
         let activeStream = null;
         let faceApiInterval = null;
         const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-        // Máscara do CPF
         cpfInput.addEventListener('input', (e) => {
             let value = e.target.value.replace(/\D/g, '');
             value = value.replace(/(\d{3})(\d)/, '$1.$2');
@@ -104,7 +101,6 @@
             e.target.value = value;
         });
 
-        // Carregar modelos da IA
         async function loadFaceApiModels() {
             const MODEL_URL = '/static/models';
             try {
@@ -167,7 +163,7 @@
             context.drawImage(webcamElement, -canvasElement.width, 0, canvasElement.width, canvasElement.height);
 
             canvasElement.toBlob(async function(blob) {
-                showStep(3); // Mostra o loader
+                showStep(3);
                 await authenticateOnBackend(blob);
             }, 'image/jpeg', 0.9);
         }
@@ -185,16 +181,19 @@
                 });
                 const data = await response.json();
                 
-                if (!response.ok) throw new Error(data.erro || data.detalhes || 'Falha na autenticação.');
+                if (!response.ok) {
+                    const errorDetails = data.workflow_executado?.busca_usuario?.detalhes;
+                    throw new Error(errorDetails || data.erro || 'Falha na autenticação.');
+                }
 
                 const statusClass = data.status_geral === 'APROVADO' ? 'APROVADO' : 'PENDENCIA';
                 finalStatusContainer.innerHTML = `<div class="final-status ${statusClass}">${data.status_geral}</div>`;
                 
             } catch (error) {
                 console.error("Erro no backend:", error);
-                finalStatusContainer.innerHTML = `<div class="final-status PENDENCIA">Erro: ${error.message}</div>`;
+                finalStatusContainer.innerHTML = `<div class="final-status FALHA">Erro: ${error.message}</div>`;
             } finally {
-                showStep(4); // Mostra o resultado
+                showStep(4);
             }
         }
 

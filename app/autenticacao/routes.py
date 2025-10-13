@@ -27,6 +27,13 @@ def autenticar_transacao():
 
     try:
         resultado = auth_service.authenticate_user(cpf, selfie_bytes)
+        # Se o usuário não foi encontrado, o serviço retorna um status de pendência.
+        if resultado['status_geral'] != 'APROVADO':
+             # Retorna status 404 (Not Found) se o usuário não existe para a comparação
+            if resultado['workflow_executado'].get('busca_usuario', {}).get('status') == 'FALHA':
+                return jsonify(resultado), 404
+            return jsonify(resultado), 400
+
         return jsonify(resultado), 200
     except Exception as e:
         logger.error(f"Erro inesperado durante a autenticação: {e}", exc_info=True)
