@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime
-from app import db
+from app import db # Garante que estamos a usar a instância correta do db
 
 class Verificacao(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -12,14 +12,9 @@ class Verificacao(db.Model):
     resultado_completo_json = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
 
-    # Colunas para as imagens principais
     doc_frente_url = db.Column(db.String(255))
     selfie_url = db.Column(db.String(255))
-
-    # Coluna para guardar dados extras, como a URL da selfie com documento
     dados_extra_json = db.Column(db.JSON, nullable=True)
-
-    # NOVIDADE: Coluna para armazenar o score de risco calculado
     risk_score = db.Column(db.Integer, index=True, nullable=True)
 
     def __repr__(self):
@@ -29,7 +24,6 @@ class Verificacao(db.Model):
         self.dados_entrada_json = json.dumps(dados)
         
     def set_resultado_completo(self, resultado):
-        # Garante que o resultado seja sempre um dicionário antes de converter para JSON
         if isinstance(resultado, dict):
             self.resultado_completo_json = json.dumps(resultado, indent=2)
         else:

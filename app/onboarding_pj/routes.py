@@ -12,7 +12,7 @@ import cloudinary
 import cloudinary.uploader
 from app.services import bgc_service, biometrics_service, data_service, document_service, score_service
 
-bp = Blueprint('onboarding_pf', __name__)
+bp = Blueprint('onboarding_pJ', __name__)
 
 cloudinary.config(
     cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
