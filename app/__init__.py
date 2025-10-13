@@ -13,6 +13,7 @@ def create_app(config_class=Config):
     db.init_app(app)
 
     # --- REGISTRO DOS BLUEPRINTS ---
+    # As importações são feitas dentro da função para evitar erros de importação circular
     from app.onboarding_pj.routes import bp as onboarding_pj_bp
     app.register_blueprint(onboarding_pj_bp, url_prefix='/onboarding/pj')
     
