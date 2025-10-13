@@ -122,7 +122,7 @@
         let ocrResultData = {}; 
         let faceApiInterval = null;
         
-        const API_KEY = 'Le010584'; // <--- SUBSTITUA AQUI PELA SUA CHAVE REAL DA VERSEL
+        const API_KEY = 'Le010584'; // NOVIDADE: Chave de API inserida.
 
         const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
         const iaLoader = document.getElementById('ia-loader');
@@ -402,9 +402,9 @@
                     instructionEl.innerText = "Centralize seu rosto na moldura";
                     const centerX = box.x + box.width / 2;
                     const centerY = box.y + box.height / 2;
-                    const isCentered = (centerX > webcamEl.videoWidth * 0.3 && centerX < webcamElement.videoWidth * 0.7) &&
-                                     (centerY > webcamEl.videoHeight * 0.3 && centerY < webcamElement.videoHeight * 0.7);
-                    const sufficientSize = box.width > webcamEl.videoWidth * 0.4;
+                    const isCentered = (centerX > webcamElement.videoWidth * 0.3 && centerX < webcamElement.videoWidth * 0.7) &&
+                                     (centerY > webcamElement.videoHeight * 0.3 && centerY < webcamElement.videoHeight * 0.7);
+                    const sufficientSize = box.width > webcamElement.videoWidth * 0.4;
 
                     if (isCentered && sufficientSize) {
                         overlayEl.classList.add('detected');
