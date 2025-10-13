@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime
-from app import db # Garante que estamos a usar a instância correta do db
+from app import db
 
 class Verificacao(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -12,8 +12,11 @@ class Verificacao(db.Model):
     resultado_completo_json = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
 
+    # Colunas para as imagens
     doc_frente_url = db.Column(db.String(255))
     selfie_url = db.Column(db.String(255))
+
+    # Novas colunas que estavam em falta
     dados_extra_json = db.Column(db.JSON, nullable=True)
     risk_score = db.Column(db.Integer, index=True, nullable=True)
 
