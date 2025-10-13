@@ -22,11 +22,15 @@
         .camera-container { border: 2px dashed var(--border-color); border-radius: 8px; padding: 20px; margin-top: 20px; }
         .camera-feed { position: relative; width: 100%; max-width: 400px; margin: 0 auto; overflow: hidden; border-radius: 8px; }
         video { width: 100%; display: block; }
-        #selfie-webcam { transform: scaleX(-1); }
+        #selfie-webcam, #selfie_doc-webcam { transform: scaleX(-1); } /* NOVIDADE: Espelha também a webcam da selfie com documento */
         .camera-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-        .doc-overlay-shape { position: absolute; top: 50%; left: 50%; width: 85%; height: 70%; transform: translate(-50%, -50%); border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); }
+        /* NOVIDADE: Melhorias no overlay do documento */
+        .doc-overlay-shape { position: absolute; top: 50%; left: 50%; width: 90%; height: 60%; transform: translate(-50%, -50%); border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); border: 3px dashed white; transition: all 0.3s; }
+        /* NOVIDADE: Overlay para selfie com documento */
+        .selfie-doc-overlay-shape { position: absolute; top: 50%; left: 50%; width: 85%; padding-bottom: 90%; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); border: 3px dashed white; transition: all 0.3s; }
+
         .selfie-overlay-shape { position: absolute; top: 50%; left: 50%; width: 70%; padding-bottom: 85%; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); border: 3px dashed white; transition: all 0.5s; }
-        .selfie-overlay-shape.detected { border-color: var(--success-color); border-style: solid; box-shadow: 0 0 0 9999px rgba(40, 167, 69, 0.4); }
+        .selfie-overlay-shape.detected, .doc-overlay-shape.detected, .selfie-doc-overlay-shape.detected { border-color: var(--success-color); border-style: solid; box-shadow: 0 0 0 9999px rgba(40, 167, 69, 0.4); }
         .camera-instruction { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 500; z-index: 10; animation: fadeIn 0.5s; }
         .loader { border: 8px solid #f3f3f3; border-top: 8px solid var(--primary-color); border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -42,20 +46,74 @@
         .final-status { padding: 15px; border-radius: 8px; color: #fff; text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 20px; }
         .final-status.APROVADO { background-color: var(--success-color); }
         .final-status.PENDENCIA { background-color: var(--error-color); }
+
+        /* NOVIDADE: Estilo para o input de arquivo */
+        .file-upload-wrapper { position: relative; overflow: hidden; display: inline-block; width: 100%; margin-top: 10px; }
+        .file-upload-wrapper input[type="file"] { font-size: 100px; position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; }
+        .file-upload-button { width: 100%; padding: 15px; background-color: #6c757d; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.3s; text-align: center; display: block; }
+        .file-upload-button:hover { background-color: #5a6268; }
+        #file-upload-name { margin-top: 10px; font-size: 14px; color: var(--light-text-color); }
     </style>
 </head>
 <body>
     <div class="onboarding-container">
         <div class="step active" id="step-1"><h2>Verificação de Identidade</h2><p>Vamos iniciar a validação. O processo é rápido e seguro.</p><button class="button" onclick="nextStep()" id="start-button">Iniciar Verificação</button><p id="ia-loader" style="display:none; color: var(--light-text-color); font-size: 14px;">Carregando modelos de IA...</p></div>
-        <div class="step" id="step-2"><h2>Documento (Frente)</h2><p>Use a câmera traseira e posicione a FRENTE do seu documento na moldura.</p><div class="camera-container"><div class="camera-feed"><video id="doc_frente-webcam" autoplay playsinline></video><div class="camera-overlay"><div class="doc-overlay-shape"></div></div></div><canvas id="doc_frente-canvas" style="display:none;"></canvas></div><button class="button" onclick="takePicture('doc_frente')">Capturar Frente</button></div>
+        
+        <div class="step" id="step-2">
+            <h2>Documento (Frente)</h2>
+            <p>Posicione a FRENTE do seu documento na moldura ou faça o upload.</p>
+            <div class="camera-container">
+                <div class="camera-feed">
+                    <video id="doc_frente-webcam" autoplay playsinline></video>
+                    <div class="camera-overlay">
+                        <div class="doc-overlay-shape"></div>
+                    </div>
+                </div>
+                <canvas id="doc_frente-canvas" style="display:none;"></canvas>
+            </div>
+            <button class="button" onclick="takePicture('doc_frente')" id="capture-doc-button">Capturar Frente</button>
+            <div style="margin-top: 20px;">
+                <p>Ou</p>
+                <div class="file-upload-wrapper">
+                    <input type="file" id="doc-upload-input" accept="image/*" onchange="handleDocUpload(event)">
+                    <button class="file-upload-button">Fazer Upload do Documento</button>
+                </div>
+                <p id="file-upload-name"></p>
+            </div>
+        </div>
+
         <div class="step" id="step-3"><h2>Confirme seus Dados</h2><p id="ocr-instruction">Verifique se os dados extraídos do seu documento estão corretos.</p><div id="ocr-loader" class="loader"></div><div id="ocr-form" style="display:none;"><div class="form-group"><label for="nome">Nome Completo:</label><input type="text" id="nome"></div><div class="form-group"><label for="data_nascimento">Data de Nascimento:</label><input type="text" id="data_nascimento"></div><div class="form-group"><label for="cpf">CPF:</label><input type="text" id="cpf"></div><button class="button" onclick="nextStep()">Dados Corretos, Avançar</button></div></div>
-        <div class="step" id="step-4"><h2>Prova de Vida</h2><p>Use a câmera frontal e siga as instruções na tela.</p><div class="camera-container"><div class="camera-feed"><video id="selfie-webcam" autoplay playsinline></video><div class="camera-overlay"><div id="selfie-overlay-shape" class="selfie-overlay-shape"></div><div id="selfie-instruction" class="camera-instruction" style="display: none;"></div></div></div><canvas id="selfie-canvas" style="display:none;"></canvas></div></div>
-        <div class="step" id="step-5"><h2>Analisando seus dados</h2><p>Realizando validações de segurança...</p><div class="loader"></div></div>
-        <div class="step" id="step-6"><h2>Verificação Concluída</h2><div id="final-status-container"></div><p>Veja os detalhes da sua análise.</p><div id="result-container"></div><button class="button secondary" onclick="restart()">Iniciar Nova Verificação</button></div>
+        
+        <div class="step" id="step-4">
+            <h2>Selfie com Documento</h2>
+            <p>Segure seu documento ao lado do rosto e capture uma selfie clara.</p>
+            <div class="camera-container">
+                <div class="camera-feed">
+                    <video id="selfie_doc-webcam" autoplay playsinline></video>
+                    <div class="camera-overlay">
+                        <div id="selfie_doc-overlay-shape" class="selfie-doc-overlay-shape"></div>
+                        <div id="selfie_doc-instruction" class="camera-instruction" style="display: none;">Centralize seu rosto e documento na moldura.</div>
+                    </div>
+                </div>
+                <canvas id="selfie_doc-canvas" style="display:none;"></canvas>
+            </div>
+            <button class="button" onclick="takePicture('selfie_doc')">Capturar Selfie com Documento</button>
+        </div>
+
+        <div class="step" id="step-5"><h2>Prova de Vida (Sorriso)</h2><p>Centralize seu rosto e, quando for solicitado, SORRIA para capturar.</p><div class="camera-container"><div class="camera-feed"><video id="selfie-webcam" autoplay playsinline></video><div class="camera-overlay"><div id="selfie-overlay-shape" class="selfie-overlay-shape"></div><div id="selfie-instruction" class="camera-instruction" style="display: none;"></div></div></div><canvas id="selfie-canvas" style="display:none;"></canvas></div></div>
+        
+        <div class="step" id="step-6"><h2>Analisando seus dados</h2><p>Realizando validações de segurança...</p><div class="loader"></div></div>
+        <div class="step" id="step-7"><h2>Verificação Concluída</h2><div id="final-status-container"></div><p>Veja os detalhes da sua análise.</p><div id="result-container"></div><button class="button secondary" onclick="restart()">Iniciar Nova Verificação</button></div>
     </div>
 
     <script>
-        let currentStep = 1; let capturedDocFrenteBlob = null; let capturedSelfieBlob = null; let activeStream = null; let ocrResultData = {}; let faceApiInterval = null;
+        // NOVIDADE: Variável para armazenar a selfie com documento
+        let currentStep = 1; let capturedDocFrenteBlob = null; let capturedSelfieDocBlob = null; let capturedSelfieBlob = null; 
+        let activeStream = null; let ocrResultData = {}; let faceApiInterval = null;
+        
+        // NOVIDADE: Chave de API (SUBSTITUA PELA SUA CHAVE REAL)
+        const API_KEY = 'Le010584'; // <--- SUBSTITUA AQUI PELA SUA CHAVE REAL DA VERSEL
+
         const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
         const iaLoader = document.getElementById('ia-loader');
         const startButton = document.getElementById('start-button');
@@ -69,7 +127,7 @@
                 await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
-                await faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL);
+                await faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL); // Não é usado no liveness atual, mas pode ser útil
                 console.log("LOG: Modelos da IA carregados com sucesso!");
                 iaLoader.style.display = 'none';
                 startButton.disabled = false;
@@ -97,28 +155,61 @@
             }
             const nextStepNumber = currentStep + 1;
             showStep(nextStepNumber);
+            // NOVIDADE: Ajuste na lógica de navegação dos passos
             if (nextStepNumber === 2) { startCamera('doc_frente'); } 
-            else if (nextStepNumber === 4) { runLivenessSequence(); } 
-            else if (nextStepNumber === 5) { verificarPessoaFisica(); }
+            else if (nextStepNumber === 4) { startCamera('selfie_doc', true); } // Nova etapa de selfie com documento
+            else if (nextStepNumber === 5) { runLivenessSequence(); } // Prova de vida é agora o passo 5
+            else if (nextStepNumber === 6) { verificarPessoaFisica(); } // Verificação final é agora o passo 6
         }
         
         function restart() {
-            capturedDocFrenteBlob = null; capturedSelfieBlob = null; ocrResultData = {};
+            capturedDocFrenteBlob = null; capturedSelfieDocBlob = null; capturedSelfieBlob = null; ocrResultData = {};
             if (activeStream) { activeStream.getTracks().forEach(track => track.stop()); activeStream = null; }
             if (faceApiInterval) { clearInterval(faceApiInterval); faceApiInterval = null; }
             document.getElementById('result-container').innerHTML = '';
             document.getElementById('final-status-container').innerHTML = '';
+            document.getElementById('file-upload-name').innerText = ''; // Limpa nome do arquivo
             showStep(1);
         }
 
-        async function startCamera(type) {
+        async function startCamera(type, detectFace = false) { // NOVIDADE: Adiciona parametro detectFace
              const isDoc = type.startsWith('doc');
             const webcamElement = document.getElementById(`${type}-webcam`);
+            const overlayEl = document.getElementById(`${type}-overlay-shape`); // NOVIDADE: Pega o overlay correto
+            const instructionEl = document.getElementById(`${type}-instruction`); // NOVIDADE: Pega a instrução correta
+
             let constraints = { video: { facingMode: isDoc ? 'environment' : 'user' } };
             try {
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 webcamElement.srcObject = stream;
                 activeStream = stream;
+
+                if (detectFace) { // NOVIDADE: Lógica de detecção de rosto para selfie com documento
+                    instructionEl.style.display = 'block';
+                    faceApiInterval = setInterval(async () => {
+                        const detections = await faceapi.detectAllFaces(webcamElement, new faceapi.TinyFaceDetectorOptions());
+                        if (detections.length === 0) {
+                            instructionEl.innerText = "Nenhum rosto ou documento detectado"; // NOVIDADE
+                            overlayEl.classList.remove('detected');
+                        } else {
+                            const face = detections[0];
+                            const box = face.detection.box;
+                            const centerX = box.x + box.width / 2;
+                            const centerY = box.y + box.height / 2;
+                            const isCentered = (centerX > webcamElement.videoWidth * 0.3 && centerX < webcamElement.videoWidth * 0.7) &&
+                                             (centerY > webcamElement.videoHeight * 0.3 && centerY < webcamElement.videoHeight * 0.7);
+                            const sufficientSize = box.width > webcamElement.videoWidth * 0.3;
+
+                            if (isCentered && sufficientSize) {
+                                overlayEl.classList.add('detected');
+                                instructionEl.innerText = "Rosto e documento centralizados!"; // NOVIDADE
+                            } else {
+                                overlayEl.classList.remove('detected');
+                                instructionEl.innerText = "Centralize seu rosto E o documento na moldura."; // NOVIDADE
+                            }
+                        }
+                    }, 200);
+                }
                 return true;
             } catch (err) {
                 console.warn(`Falha ao obter câmera '${isDoc ? 'environment' : 'user'}'. Tentando alternativa.`);
@@ -127,6 +218,7 @@
                     const stream = await navigator.mediaDevices.getUserMedia(constraints);
                     webcamElement.srcObject = stream;
                     activeStream = stream;
+                    if (detectFace) { /* Lógica de detecção para câmera alternativa, se necessário */ }
                     return true;
                 } catch (finalErr) {
                     alert("Erro definitivo ao acessar a câmera. Verifique as permissões no seu navegador.");
@@ -142,23 +234,46 @@
             const context = canvasElement.getContext('2d');
             canvasElement.width = webcamElement.videoWidth;
             canvasElement.height = webcamElement.videoHeight;
-            if (type === 'selfie') {
+            
+            // NOVIDADE: Ajuste para espelhamento da selfie com documento
+            if (type.startsWith('selfie')) {
                 context.scale(-1, 1);
                 context.drawImage(webcamElement, -canvasElement.width, 0, canvasElement.width, canvasElement.height);
             } else {
                 context.drawImage(webcamElement, 0, 0, canvasElement.width, canvasElement.height);
             }
+
             canvasElement.toBlob(function(blob) {
                 if (type === 'doc_frente') {
                     capturedDocFrenteBlob = blob;
                     showStep(3);
                     extrairDadosDoDocumento(blob);
+                } else if (type === 'selfie_doc') { // NOVIDADE: Salva a selfie com documento
+                    capturedSelfieDocBlob = blob;
+                    nextStep(); // Vai para a prova de vida
                 } else {
                     capturedSelfieBlob = blob;
-                    nextStep();
+                    nextStep(); // Vai para a verificação final
                 }
             }, 'image/jpeg', 0.9);
         }
+
+        // NOVIDADE: Função para lidar com upload de arquivo
+        async function handleDocUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                document.getElementById('file-upload-name').innerText = `Arquivo selecionado: ${file.name}`;
+                document.getElementById('capture-doc-button').disabled = true; // Desabilita captura da câmera
+                capturedDocFrenteBlob = file; // Salva o blob do arquivo
+                await sleep(500); // Pequena pausa para UX
+                showStep(3);
+                extrairDadosDoDocumento(file);
+            } else {
+                document.getElementById('file-upload-name').innerText = '';
+                document.getElementById('capture-doc-button').disabled = false;
+            }
+        }
+
 
         async function extrairDadosDoDocumento(frenteBlob) {
             const ocrLoader = document.getElementById('ocr-loader');
@@ -170,7 +285,7 @@
             const formData = new FormData();
             formData.append('documento_frente', frenteBlob, 'doc_frente.jpg');
             try {
-                const response = await fetch('/onboarding/pf/extrair-ocr', { method: 'POST', body: formData, headers: {'X-API-KEY': 'Le010584'} });
+                const response = await fetch('/onboarding/pf/extrair-ocr', { method: 'POST', body: formData, headers: {'X-API-KEY': API_KEY} });
                 ocrResultData = await response.json();
                 if (response.status !== 200 || ocrResultData.status !== 'SUCESSO') {
                     throw new Error(ocrResultData.motivo || 'Falha desconhecida no OCR');
@@ -182,25 +297,45 @@
                 ocrForm.style.display = 'block';
                 ocrInstruction.innerText = 'Verifique se os dados extraídos do seu documento estão corretos.';
             } catch (error) {
-                alert("Falha na Leitura: " + error.message + ". Por favor, tente novamente com uma foto mais nítida.");
-                showStep(2); 
-                startCamera('doc_frente');
+                // NOVIDADE: Feedback de erro mais claro e volta para o passo correto
+                alert("Falha na Leitura: " + error.message + ". Por favor, tente novamente com uma foto mais nítida ou faça o upload de um arquivo de alta qualidade.");
+                restart(); // Reinicia o fluxo para o usuário
             }
         }
         
         async function verificarPessoaFisica() {
-            if (!capturedDocFrenteBlob || !capturedSelfieBlob) { alert("Ocorreu um erro na captura das imagens. Por favor, reinicie."); restart(); return; }
+            // NOVIDADE: Verifica também a selfie com documento
+            if (!capturedDocFrenteBlob || !capturedSelfieDocBlob || !capturedSelfieBlob) { 
+                alert("Ocorreu um erro na captura de todas as imagens. Por favor, reinicie."); 
+                restart(); 
+                return; 
+            }
             const formData = new FormData();
             formData.append('nome', document.getElementById('nome').value);
             formData.append('cpf', document.getElementById('cpf').value);
             if (ocrResultData.foto_3x4_base64) { formData.append('foto_documento_b64', ocrResultData.foto_3x4_base64); }
             formData.append('documento_frente', capturedDocFrenteBlob, 'doc_frente.jpg');
-            formData.append('selfie', capturedSelfieBlob, 'selfie.jpg');
+            formData.append('selfie_documento', capturedSelfieDocBlob, 'selfie_documento.jpg'); // NOVIDADE
+            formData.append('selfie_liveness', capturedSelfieBlob, 'selfie_liveness.jpg'); // NOVIDADE (Renomeado)
+            
             try {
-                const response = await fetch('/onboarding/pf/verificar', { method: 'POST', body: formData, headers: {'X-API-KEY': 'Le010584'} });
+                const response = await fetch('/onboarding/pf/verificar', { method: 'POST', body: formData, headers: {'X-API-KEY': API_KEY} });
                 const data = await response.json();
-                displayResults(data);
-            } catch (error) { alert("Erro de comunicação com o servidor. Tente novamente."); restart(); } finally { showStep(6); }
+                if (response.ok) { // NOVIDADE: Verifica se a resposta foi bem-sucedida (status 2xx)
+                    displayResults(data);
+                } else {
+                    // NOVIDADE: Trata erros de API de forma mais específica
+                    const errorMessage = data.erro || data.motivo || 'Erro desconhecido na API.';
+                    alert("Erro na verificação: " + errorMessage + ". Por favor, tente novamente.");
+                    restart();
+                }
+            } catch (error) { 
+                // NOVIDADE: Captura erros de rede ou outros problemas de comunicação
+                alert("Erro de comunicação com o servidor. Verifique sua conexão e tente novamente. Detalhes: " + error.message); 
+                restart(); 
+            } finally { 
+                showStep(7); // NOVIDADE: Ajusta para o passo final
+            }
         }
 
         function displayResults(data) { 
@@ -228,7 +363,7 @@
         
         function formatStepName(key) { return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); }
 
-        // --- LIVENESS ATIVO ATUALIZADO ---
+        // --- LIVENESS ATIVO ATUALIZADO (MESMA LÓGICA, APENAS COMENTÁRIOS REMOVIDOS) ---
         async function runLivenessSequence() {
             const instructionEl = document.getElementById('selfie-instruction');
             const overlayEl = document.getElementById('selfie-overlay-shape');
@@ -239,7 +374,7 @@
             instructionEl.style.display = 'block';
             
             let challengeState = {
-                current: 'CENTER', // Os estados agora são CENTER, SMILE, DONE
+                current: 'CENTER', 
                 faceCentered: false,
                 smiled: false
             };
@@ -258,7 +393,6 @@
                 const box = face.detection.box;
                 const expressions = face.expressions;
 
-                // Desafio 1: Centralizar o Rosto
                 if (challengeState.current === 'CENTER') {
                     instructionEl.innerText = "Centralize seu rosto na moldura";
                     const centerX = box.x + box.width / 2;
@@ -270,14 +404,13 @@
                     if (isCentered && sufficientSize) {
                         overlayEl.classList.add('detected');
                         challengeState.faceCentered = true;
-                        challengeState.current = 'SMILE'; // Avança direto para o desafio do sorriso
+                        challengeState.current = 'SMILE'; 
                     } else {
                         overlayEl.classList.remove('detected');
                         if (!sufficientSize) instructionEl.innerText = "Aproxime-se um pouco";
                     }
                 }
 
-                // Desafio 2: Sorrir (Prova de vida ativa)
                 if (challengeState.current === 'SMILE') {
                     instructionEl.innerText = "Agora, SORRIA!";
                     const SMILE_THRESHOLD = 0.8;
@@ -287,7 +420,6 @@
                     }
                 }
 
-                // Finalização
                 if (challengeState.current === 'DONE') {
                     instructionEl.innerText = "Excelente!";
                     clearInterval(faceApiInterval);
