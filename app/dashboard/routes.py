@@ -25,8 +25,11 @@ def get_verifications():
         data = []
         for v in verifications:
             try:
+                # NOVIDADE: Verifica se os campos não são nulos antes de processar
                 dados_completos = json.loads(v.resultado_completo_json) if v.resultado_completo_json else {}
                 timestamp_str = v.timestamp.strftime('%d/%m/%Y %H:%M:%S') if v.timestamp else 'Data indisponível'
+                
+                # O SQLAlchemy já converte o tipo JSON para um dicionário Python aqui.
                 dados_extra = v.dados_extra_json if v.dados_extra_json else {}
 
                 data.append({
@@ -37,8 +40,7 @@ def get_verifications():
                     'dados_completos': dados_completos,
                     'doc_frente_url': v.doc_frente_url,
                     'selfie_url': v.selfie_url,
-                    'dados_extra': dados_extra,
-                    'risk_score': v.risk_score
+                    'dados_extra': dados_extra
                 })
             except Exception as e:
                 logger.error(f"Erro ao processar o registo de verificação com ID {v.id}: {e}")
@@ -48,5 +50,4 @@ def get_verifications():
         
     except Exception as e:
         logger.error(f"Erro 500 na API /api/verifications. Detalhes: {e}", exc_info=True)
-        # Retorna a mensagem de erro específica para ajudar na depuração
         return jsonify({"erro": f"Ocorreu um erro interno no servidor: {str(e)}"}), 500

@@ -3,11 +3,14 @@
 from flask import request, jsonify, current_app
 from app.autenticacao import bp
 from app.services import auth_service
-# A importação do decorator foi removida daqui
+from app.decorators import require_api_key # NOVIDADE: Importa do novo local
 
 @bp.route('/autenticar', methods=['POST'])
-# O decorator @require_api_key foi REMOVIDO daqui
+@require_api_key
 def autenticar_transacao():
+    """
+    Recebe uma selfie e um CPF para autenticar um usuário existente.
+    """
     logger = current_app.logger
     
     if 'selfie_atual' not in request.files or 'cpf' not in request.form:
@@ -28,7 +31,8 @@ def autenticar_transacao():
             if resultado['workflow_executado'].get('busca_usuario', {}).get('status') == 'FALHA':
                 return jsonify(resultado), 404
             return jsonify(resultado), 400
+
         return jsonify(resultado), 200
     except Exception as e:
-        logger.error(f"Erro inesperado na autenticação: {e}", exc_info=True)
+        logger.error(f"Erro inesperado durante a autenticação: {e}", exc_info=True)
         return jsonify({"erro": "Ocorreu um erro interno no servidor."}), 500
