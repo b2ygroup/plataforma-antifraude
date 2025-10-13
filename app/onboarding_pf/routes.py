@@ -9,7 +9,6 @@ from google.cloud import vision
 from google.oauth2 import service_account
 import cloudinary
 import cloudinary.uploader
-# Importa todos os serviços necessários e o decorator
 from app.services import bgc_service, biometrics_service, data_service, document_service, score_service
 from app.decorators import require_api_key
 
@@ -43,7 +42,7 @@ def get_vision_client():
 
 def analisar_documento_com_google_vision(doc_frente_bytes):
     logger = current_app.logger
-    logger.info("OCR V9: Iniciando análise com lógica de extração aprimorada...")
+    logger.info("OCR V9: Iniciando análise com lógica de extração híbrida...")
     try:
         client = get_vision_client()
         if client is None: return {"status": "ERRO_CONFIGURACAO", "motivo": "Serviço de OCR não configurado."}
@@ -58,16 +57,16 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         full_text_flat = full_text_com_newlines.replace('\n', ' ')
         dados_extraidos = {}
         
-        # --- NOVIDADE: LÓGICA DE EXTRAÇÃO HÍBRIDA (Específica > Genérica) ---
+        # --- LÓGICA DE EXTRAÇÃO HÍBRIDA (Específica > Genérica) ---
 
         # NOME: Tenta primeiro o padrão mais exato de CNH, depois um mais genérico.
-        nome_match = re.search(r'NOME\n([A-Z\s\n]+)DOC DE IDENTIDADE', full_text_com_newlines)
+        nome_match = re.search(r'(?:NOME E SOBRENOME|NOME)\n([A-Z\s\n]+?)\n(?:[A-Z]\n\d{2}/\d{2}/\d{4}|DOC DE IDENTIDADE)', full_text_com_newlines)
         if nome_match:
             nome = nome_match.group(1).replace('\n', ' ').strip()
             dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
         else: # Fallback para outros padrões
             nome_padroes = [
-                r'(?:NOME E SOBRENOME|NOME|NOME COMPLETO)\n*([A-Z\s]+?)(?=\s\s|\n[A-Z_]{3,})'
+                r'(?:NOME COMPLETO)\n*([A-Z\s]+?)(?=\s\s|\n[A-Z_]{3,})'
             ]
             for padrao in nome_padroes:
                 match = re.search(padrao, full_text_com_newlines)
@@ -86,13 +85,14 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
                 dados_extraidos['cpf'] = cpf_match_unformatted.group(1)
 
         # DATA DE NASCIMENTO
-        nasc_match = re.search(r'NASCIMENTO\n(\d{2}/\d{2}/\d{4})', full_text_com_newlines, re.IGNORECASE)
+        # Procura explicitamente por 'NASCIMENTO' seguido por uma data na linha seguinte (padrão CNH)
+        nasc_match = re.search(r'NASCIMENTO\s*\n\s*(\d{2}/\d{2}/\d{4})', full_text_com_newlines, re.IGNORECASE)
         if nasc_match:
             dados_extraidos['data_nascimento'] = nasc_match.group(1)
         else: # Fallback para outros padrões
             nasc_padroes = [
                 r'(?:DATA DE NASC)\s*[:\s]*(\d{2}/\d{2}/\d{4})',
-                r'\b(\d{2}/\d{2}/(?:19|20)\d{2})\b'
+                r'(\d{2}/\d{2}/(?:19|20)\d{2})' # Pega a primeira data válida no documento
             ]
             for padrao in nasc_padroes:
                 match = re.search(padrao, full_text_flat, re.IGNORECASE)
@@ -192,7 +192,6 @@ def verificar_pessoa_fisica():
         nova_verificacao.set_resultado_completo(resposta_final)
         db.session.add(nova_verificacao)
         db.session.commit()
-        logger.info(f"Verificação para {nome_cliente} salva com sucesso no BD com score {score_result.get('score')}.")
     except Exception as e:
         logger.error(f'Falha ao salvar no BD: {e}', exc_info=True)
         db.session.rollback()
