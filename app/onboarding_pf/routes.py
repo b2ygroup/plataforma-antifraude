@@ -10,7 +10,6 @@ from google.cloud import vision
 from google.oauth2 import service_account
 import cloudinary
 import cloudinary.uploader
-# Importando TODOS os nossos serviços
 from app.services import bgc_service, biometrics_service, data_service, document_service
 
 bp = Blueprint('onboarding_pf', __name__)
@@ -22,7 +21,6 @@ cloudinary.config(
     secure=True
 )
 
-# O decorator require_api_key permanece o mesmo
 def require_api_key(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -38,7 +36,6 @@ def require_api_key(f):
             return jsonify({"erro": "Chave de API inválida ou não fornecida."}), 401
     return decorated_function
 
-# A função get_vision_client e a função de OCR permanecem as mesmas
 def get_vision_client():
     logger = current_app.logger
     google_creds_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
@@ -60,7 +57,7 @@ def get_vision_client():
 
 def analisar_documento_com_google_vision(doc_frente_bytes):
     logger = current_app.logger
-    logger.info("OCR V7: Iniciando análise de documento com lógica aprimorada e correção de 'HABILITA'...")
+    logger.info("OCR V7: Iniciando análise de documento...")
     try:
         client = get_vision_client()
         if client is None:
@@ -79,7 +76,6 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         dados_extraidos = {}
         campos_faltando = []
 
-        # CPF
         cpf_padroes = [r'(\d{3}\.\d{3}\.\d{3}-\d{2})', r'(\d{3} \d{3} \d{3} \d{2})']
         for padrao in cpf_padroes:
             match = re.search(padrao, full_text_flat)
@@ -87,7 +83,6 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
                 dados_extraidos['cpf'] = match.group(1)
                 break
         
-        # Data de Nascimento
         nasc_padroes = [
             r'(?:DATA DE NASC|NASCIMENTO)\s*[:\s]*(\d{2}/\d{2}/\d{4})',
             r'\b(\d{2}/\d{2}/(?:19|20)\d{2})\b'
@@ -98,7 +93,6 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
                 dados_extraidos['data_nascimento'] = match.group(1)
                 break
 
-        # Nome
         nome_padroes = [
             r'(?:NOME|NOME COMPLETO)\n*([A-Z\s]+?)(?=\s\s|NASCIMENTO|FILIAÇÃO|CPF|DOC|REGISTRO|$)',
             r'NOME\s*([A-Z\s]+?)(?=\s\s|NASCIMENTO|FILIAÇÃO|CPF|DOC|REGISTRO|$)',
@@ -127,10 +121,10 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         logger.error(f"OCR V7: Erro inesperado na função de análise: {e}", exc_info=True)
         return {"status": "ERRO_API", "motivo": "Ocorreu um erro interno no serviço de IA."}
 
+
 @bp.route('/extrair-ocr', methods=['POST'])
 @require_api_key
 def extrair_ocr():
-    # ... (código inalterado)
     if 'documento_frente' not in request.files:
         return jsonify({"erro": "O arquivo 'documento_frente' é obrigatório."}), 400
     doc_bytes = request.files['documento_frente'].read()
@@ -145,7 +139,6 @@ def extrair_ocr():
 @bp.route('/verificar', methods=['POST'])
 @require_api_key
 def verificar_pessoa_fisica():
-    # ... (a lógica de verificação até ao final permanece a mesma, exceto o bloco `try` de salvar no BD)
     logger = current_app.logger
     if 'documento_frente' not in request.files or 'selfie_documento' not in request.files or 'selfie_liveness' not in request.files:
         return jsonify({"erro": "Todos os arquivos (documento_frente, selfie_documento, selfie_liveness) são obrigatórios."}), 400
@@ -206,21 +199,20 @@ def verificar_pessoa_fisica():
 
     resposta_final = {"status_geral": status_geral, "workflow_executado": workflow_results}
     
-    # NOVIDADE: AJUSTE NO BLOCO DE GRAVAÇÃO
     try:
+        # NOVIDADE: O bloco foi atualizado para usar o novo campo dados_extra_json
         nova_verificacao = Verificacao(
             tipo_verificacao='PF',
             status_geral=status_geral,
             doc_frente_url=doc_frente_url,
-            selfie_url=selfie_liveness_url # Salva a selfie principal (do liveness)
-            # A linha abaixo foi comentada temporariamente. Ela causa o erro se o campo não existir no BD.
-            # dados_extra_url={'selfie_documento_url': selfie_doc_url} 
+            selfie_url=selfie_liveness_url,
+            dados_extra_json={'selfie_documento_url': selfie_doc_url}
         )
         nova_verificacao.set_dados_entrada({'nome': nome_cliente, 'cpf': cpf_cliente})
         nova_verificacao.set_resultado_completo(resposta_final)
         db.session.add(nova_verificacao)
         db.session.commit()
-        logger.info(f"Verificação para {nome_cliente} salva com sucesso no BD.")
+        logger.info(f"Verificação para {nome_cliente} salva com sucesso no BD, incluindo selfie com documento.")
     except Exception as e:
         logger.error(f'Falha ao salvar no BD: {e}', exc_info=True)
         db.session.rollback()

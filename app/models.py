@@ -12,9 +12,12 @@ class Verificacao(db.Model):
     resultado_completo_json = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
 
-    # --- NOVAS COLUNAS PARA AS IMAGENS ---
+    # Colunas para as imagens principais
     doc_frente_url = db.Column(db.String(255))
     selfie_url = db.Column(db.String(255))
+
+    # NOVIDADE: Coluna para guardar dados extras, como a URL da selfie com documento
+    dados_extra_json = db.Column(db.JSON, nullable=True)
 
     def __repr__(self):
         return f'<Verificação {self.id} [{self.tipo_verificacao}] - {self.status_geral}>'

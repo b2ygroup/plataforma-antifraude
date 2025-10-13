@@ -1,8 +1,6 @@
 # app/__init__.py
 
 import os
-import logging
-from logging.handlers import RotatingFileHandler
 from flask import Flask, render_template
 from config import Config
 from flask_sqlalchemy import SQLAlchemy
@@ -11,13 +9,10 @@ db = SQLAlchemy()
 
 def create_app(config_class=Config):
     app = Flask(__name__)
+    # Carrega toda a configuração a partir do nosso objeto Config (que já leu o .env)
     app.config.from_object(config_class)
 
-    db_url = os.environ.get('DATABASE_URL')
-    if db_url and db_url.startswith("postgres://"):
-        db_url = db_url.replace("postgres://", "postgresql://", 1)
-    app.config['SQLALCHEMY_DATABASE_URI'] = db_url
-
+    # Inicializa o DB com a configuração da app
     db.init_app(app)
 
     # --- REGISTRO DOS BLUEPRINTS ---
@@ -40,13 +35,10 @@ def create_app(config_class=Config):
             db.create_all()
         return "Banco de dados inicializado com sucesso!"
 
-    # --- NOVA ROTA PARA LIMPAR E RECRIAR O BANCO DE DADOS ---
     @app.route('/clear-db-super-secret')
     def clear_db():
         with app.app_context():
-            # Apaga todas as tabelas
             db.drop_all()
-            # Cria todas as tabelas novamente
             db.create_all()
         return "Banco de dados limpo e recriado com sucesso!"
     
