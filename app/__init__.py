@@ -9,10 +9,8 @@ db = SQLAlchemy()
 
 def create_app(config_class=Config):
     app = Flask(__name__)
-    # Carrega toda a configuração a partir do nosso objeto Config (que já leu o .env)
     app.config.from_object(config_class)
 
-    # Inicializa o DB com a configuração da app
     db.init_app(app)
 
     # --- REGISTRO DOS BLUEPRINTS ---
@@ -25,9 +23,15 @@ def create_app(config_class=Config):
     from app.dashboard import bp as dashboard_bp
     app.register_blueprint(dashboard_bp)
 
+    # Rota principal para o Onboarding de Pessoa Física
     @app.route('/')
     def index():
         return render_template('index.html')
+
+    # NOVIDADE: Rota para a nova página de Onboarding de Pessoa Jurídica
+    @app.route('/pj')
+    def onboarding_pj_page():
+        return render_template('onboarding_pj.html')
 
     @app.route('/init-db-super-secret')
     def init_db():
