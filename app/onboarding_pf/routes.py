@@ -42,7 +42,7 @@ def get_vision_client():
 
 def analisar_documento_com_google_vision(doc_frente_bytes):
     logger = current_app.logger
-    logger.info("OCR V10: Iniciando análise com regex de alta precisão para CNH...")
+    logger.info("OCR V11: Iniciando análise com regex de alta precisão para CNH...")
     try:
         client = get_vision_client()
         if client is None: return {"status": "ERRO_CONFIGURACAO", "motivo": "Serviço de OCR não configurado."}
@@ -52,23 +52,24 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         if not response.text_annotations: return {"status": "REPROVADO_OCR", "motivo": "Não foi possível detetar texto no documento."}
 
         full_text_com_newlines = response.text_annotations[0].description
-        logger.info(f"OCR V10: Texto completo extraído:\n---\n{full_text_com_newlines}\n---")
+        logger.info(f"OCR V11: Texto completo extraído:\n---\n{full_text_com_newlines}\n---")
         
+        full_text_flat = full_text_com_newlines.replace('\n', ' ')
         dados_extraidos = {}
         
         # NOME: Padrão específico que procura o nome entre "NOME E SOBRENOME" e a próxima linha que parece ser um campo
-        nome_match = re.search(r'(?:NOME E SOBRENOME|NOME)\n([A-Z\s\n]+?)\n(?:[A-Z]\n\d{2}/\d{2}/\d{4}|DOC DE IDENTIDADE|DATA)', full_text_com_newlines)
+        nome_match = re.search(r'(?:NOME E SOBRENOME|NOME)\n([A-Z\s\n]+?)\n(?:HABILITAÇÃO|DOC DE IDENTIDADE|DATA|FILIAÇÃO)', full_text_com_newlines)
         if nome_match:
             nome = nome_match.group(1).replace('\n', ' ').strip()
             dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
 
         # CPF: Padrão que busca o CPF formatado
-        cpf_match = re.search(r'(\d{3}\.\d{3}\.\d{3}-\d{2})', full_text_com_newlines.replace('\n', ' '))
+        cpf_match = re.search(r'(\d{3}\.\d{3}\.\d{3}-\d{2})', full_text_flat)
         if cpf_match:
             dados_extraidos['cpf'] = cpf_match.group(1)
 
-        # DATA DE NASCIMENTO: Padrão que busca a data após a palavra "NASCIMENTO" em uma nova linha
-        nasc_match = re.search(r'NASCIMENTO\s*\n\s*(\d{2}/\d{2}/\d{4})', full_text_com_newlines, re.IGNORECASE)
+        # DATA DE NASCIMENTO: Padrão que busca a data após "NASCIMENTO" ou "DATA, LOCAL E UF DE NASCIMENTO"
+        nasc_match = re.search(r'(?:NASCIMENTO|DATA, LOCAL E UF DE NASCIMENTO)\s*\n\s*(\d{2}/\d{2}/\d{4})', full_text_com_newlines, re.IGNORECASE)
         if nasc_match:
             dados_extraidos['data_nascimento'] = nasc_match.group(1)
         
@@ -76,13 +77,13 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
 
         if campos_faltando:
             motivo = f"Não foi possível extrair os seguintes campos: {', '.join(campos_faltando)}."
-            logger.warning(f"OCR V10: Falha na extração. {motivo}")
+            logger.warning(f"OCR V11: Falha na extração. {motivo}")
             return {"status": "REPROVADO_OCR", "motivo": motivo}
 
-        logger.info(f"OCR V10: Dados extraídos com sucesso: {dados_extraidos}")
+        logger.info(f"OCR V11: Dados extraídos com sucesso: {dados_extraidos}")
         return {"status": "SUCESSO", "dados": dados_extraidos}
     except Exception as e:
-        logger.error(f"OCR V10: Erro inesperado na função de análise: {e}", exc_info=True)
+        logger.error(f"OCR V11: Erro inesperado na função de análise: {e}", exc_info=True)
         return {"status": "ERRO_API", "motivo": "Ocorreu um erro interno no serviço de IA."}
 
 

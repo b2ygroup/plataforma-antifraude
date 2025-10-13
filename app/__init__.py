@@ -19,7 +19,7 @@ def create_app(config_class=Config):
     from app.onboarding_pf.routes import bp as onboarding_pf_bp
     app.register_blueprint(onboarding_pf_bp, url_prefix='/onboarding/pf')
     
-    from app.autenticacao.routes import bp as autenticacao_bp
+    from app.autenticacao import bp as autenticacao_bp
     app.register_blueprint(autenticacao_bp, url_prefix='/autenticacao')
     
     from app.dashboard import bp as dashboard_bp
