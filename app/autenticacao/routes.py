@@ -1,10 +1,33 @@
 # app/autenticacao/routes.py
 
-from flask import jsonify
-# Importa o 'bp' que foi criado no arquivo __init__.py do mesmo diretório
+from flask import request, jsonify, current_app
 from app.autenticacao import bp
+from app.services import auth_service
+from app.onboarding_pf.routes import require_api_key # Reutiliza o decorator de API Key
 
 @bp.route('/autenticar', methods=['POST'])
+@require_api_key
 def autenticar_transacao():
-    # A lógica real para este endpoint será implementada no futuro.
-    return jsonify({"status": "Endpoint de Autenticação ainda não implementado."}), 501
+    """
+    Recebe uma selfie e um CPF para autenticar um usuário existente.
+    """
+    logger = current_app.logger
+    
+    if 'selfie_atual' not in request.files or 'cpf' not in request.form:
+        return jsonify({"erro": "Os campos 'selfie_atual' e 'cpf' são obrigatórios."}), 400
+
+    cpf = request.form['cpf']
+    selfie_file = request.files['selfie_atual']
+    selfie_bytes = selfie_file.read()
+
+    if not selfie_bytes:
+        return jsonify({"erro": "O arquivo da selfie está vazio."}), 400
+
+    logger.info(f"Iniciando fluxo de autenticação para o CPF: {cpf}")
+
+    try:
+        resultado = auth_service.authenticate_user(cpf, selfie_bytes)
+        return jsonify(resultado), 200
+    except Exception as e:
+        logger.error(f"Erro inesperado durante a autenticação: {e}", exc_info=True)
+        return jsonify({"erro": "Ocorreu um erro interno no servidor."}), 500

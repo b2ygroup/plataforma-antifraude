@@ -49,6 +49,8 @@
         .file-upload-button { width: 100%; padding: 15px; background-color: #6c757d; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.3s; text-align: center; display: block; }
         .file-upload-button:hover { background-color: #5a6268; }
         #file-upload-name { margin-top: 10px; font-size: 14px; color: var(--light-text-color); }
+        .nav-links { display: flex; justify-content: space-around; margin-top: 20px; } /* NOVIDADE */
+        .nav-links a { color: var(--primary-color); text-decoration: none; font-weight: 500; } /* NOVIDADE */
     </style>
 </head>
 <body>
@@ -58,8 +60,9 @@
             <p>Vamos iniciar a validação de pessoa física. O processo é rápido e seguro.</p>
             <button class="button" onclick="nextStep()" id="start-button">Iniciar Verificação PF</button>
             <p id="ia-loader" style="display:none; color: var(--light-text-color); font-size: 14px;">Carregando modelos de IA...</p>
-            <div style="text-align: center; margin-top: 20px;">
-                <a href="/pj" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">Verificar Empresa (PJ)</a>
+            <div class="nav-links">
+                <a href="/pj">Verificar Empresa (PJ)</a>
+                <a href="/autenticar-usuario">Autenticar Usuário</a>
             </div>
         </div>
 
@@ -119,7 +122,7 @@
         let ocrResultData = {}; 
         let faceApiInterval = null;
         
-        const API_KEY = 'Le010584'; // <--- SUBSTITUA AQUI PELA SUA CHAVE REAL DA VERSEL
+        const API_KEY = 'Le010584';
 
         const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
         const iaLoader = document.getElementById('ia-loader');
@@ -128,14 +131,12 @@
         async function loadFaceApiModels() {
             const MODEL_URL = '/static/models';
             try {
-                console.log("LOG: Carregando modelos da IA de reconhecimento facial...");
                 iaLoader.style.display = 'block';
                 startButton.disabled = true;
                 await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
                 await faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL);
-                console.log("LOG: Modelos da IA carregados com sucesso!");
                 iaLoader.style.display = 'none';
                 startButton.disabled = false;
             } catch (error) {
@@ -178,6 +179,7 @@
             document.getElementById('result-container').innerHTML = '';
             document.getElementById('final-status-container').innerHTML = '';
             document.getElementById('file-upload-name').innerText = '';
+            document.getElementById('capture-doc-button').disabled = false;
             showStep(1);
         }
 
@@ -193,7 +195,7 @@
                 webcamElement.srcObject = stream;
                 activeStream = stream;
 
-                if (detectFace && instructionEl) { // Adicionado '&& instructionEl' por segurança
+                if (detectFace && instructionEl) {
                     instructionEl.style.display = 'block';
                     faceApiInterval = setInterval(async () => {
                         const detections = await faceapi.detectAllFaces(webcamElement, new faceapi.TinyFaceDetectorOptions());
@@ -205,8 +207,6 @@
                         }
 
                         const face = detections[0];
-                        // NOVIDADE: Acessa 'box' diretamente do objeto 'face' (que é a detecção).
-                        // Esta é a correção para o erro 'Cannot read properties of undefined (reading 'box')'.
                         const box = face.box; 
                         
                         const centerX = box.x + box.width / 2;
