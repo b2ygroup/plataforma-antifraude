@@ -74,7 +74,6 @@ def verify_company(cnpj: str):
     # Etapa 2: Enriquecimento / QSA
     resultado_qsa = _simular_enriquecimento_qsa(dados_empresa)
     workflow_executado["enriquecimento_qsa"] = resultado_qsa
-    # Normalmente, uma falha aqui também geraria pendência, mas manteremos simples por enquanto.
     
     # Etapa 3: Background Check (BGC)
     resultado_bgc = _simular_bgc_completo(cnpj, razao_social)
