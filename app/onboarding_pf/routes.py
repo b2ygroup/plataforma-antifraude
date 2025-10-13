@@ -22,6 +22,7 @@ cloudinary.config(
     secure=True
 )
 
+# O decorator require_api_key permanece o mesmo
 def require_api_key(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -37,6 +38,7 @@ def require_api_key(f):
             return jsonify({"erro": "Chave de API inválida ou não fornecida."}), 401
     return decorated_function
 
+# A função get_vision_client e a função de OCR permanecem as mesmas
 def get_vision_client():
     logger = current_app.logger
     google_creds_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
@@ -96,19 +98,18 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
                 dados_extraidos['data_nascimento'] = match.group(1)
                 break
 
-        # NOVIDADE: Lógica de extração de Nome mais robusta, removendo "HABILITA"
+        # Nome
         nome_padroes = [
-            r'(?:NOME|NOME COMPLETO)\n*([A-Z\s]+?)(?=\s\s|NASCIMENTO|FILIAÇÃO|CPF|DOC|REGISTRO|$)', # Pega até 2 espaços, ou outro campo
-            r'NOME\s*([A-Z\s]+?)(?=\s\s|NASCIMENTO|FILIAÇÃO|CPF|DOC|REGISTRO|$)', # Versão de linha única
+            r'(?:NOME|NOME COMPLETO)\n*([A-Z\s]+?)(?=\s\s|NASCIMENTO|FILIAÇÃO|CPF|DOC|REGISTRO|$)',
+            r'NOME\s*([A-Z\s]+?)(?=\s\s|NASCIMENTO|FILIAÇÃO|CPF|DOC|REGISTRO|$)',
         ]
         if 'nome' not in dados_extraidos:
              for padrao in nome_padroes:
-                match = re.search(padrao, full_text_com_newlines, re.IGNORECASE) # Usa texto com newlines para nome
+                match = re.search(padrao, full_text_com_newlines, re.IGNORECASE)
                 if match:
                     nome = match.group(1).replace('\n', ' ').strip()
-                    # Remove "HABILITA" e múltiplos espaços, caso apareçam
                     nome = re.sub(r'\bHABILITA\b', '', nome, flags=re.IGNORECASE).strip()
-                    dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome) # Normaliza múltiplos espaços
+                    dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
                     break
 
         if 'nome' not in dados_extraidos: campos_faltando.append('nome')
@@ -126,19 +127,16 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         logger.error(f"OCR V7: Erro inesperado na função de análise: {e}", exc_info=True)
         return {"status": "ERRO_API", "motivo": "Ocorreu um erro interno no serviço de IA."}
 
-
 @bp.route('/extrair-ocr', methods=['POST'])
 @require_api_key
 def extrair_ocr():
+    # ... (código inalterado)
     if 'documento_frente' not in request.files:
         return jsonify({"erro": "O arquivo 'documento_frente' é obrigatório."}), 400
-    
     doc_bytes = request.files['documento_frente'].read()
     if not doc_bytes:
         return jsonify({"status": "REPROVADO_OCR", "motivo": "O arquivo do documento está vazio."}), 400
-
     resultado_ocr = analisar_documento_com_google_vision(doc_bytes)
-    
     if resultado_ocr.get('status') == 'SUCESSO':
         return jsonify(resultado_ocr)
     else:
@@ -147,28 +145,25 @@ def extrair_ocr():
 @bp.route('/verificar', methods=['POST'])
 @require_api_key
 def verificar_pessoa_fisica():
+    # ... (a lógica de verificação até ao final permanece a mesma, exceto o bloco `try` de salvar no BD)
     logger = current_app.logger
-    # NOVIDADE: Verifica os novos campos de arquivo
     if 'documento_frente' not in request.files or 'selfie_documento' not in request.files or 'selfie_liveness' not in request.files:
         return jsonify({"erro": "Todos os arquivos (documento_frente, selfie_documento, selfie_liveness) são obrigatórios."}), 400
     
-    # Input de dados
     nome_cliente = request.form.get('nome', 'N/A')
     cpf_cliente = request.form.get('cpf', 'N/A')
     foto_doc_b64 = request.form.get('foto_documento_b64', '')
     arquivo_frente = request.files['documento_frente']
-    arquivo_selfie_doc = request.files['selfie_documento'] # NOVIDADE
-    arquivo_selfie_liveness = request.files['selfie_liveness'] # NOVIDADE (Renomeado)
+    arquivo_selfie_doc = request.files['selfie_documento']
+    arquivo_selfie_liveness = request.files['selfie_liveness']
 
     logger.info(f'ONBOARDING V3 (idwall flow): Iniciando fluxo para {nome_cliente}')
     
     try:
         upload_result_doc = cloudinary.uploader.upload(arquivo_frente, folder="onboarding_docs")
         doc_frente_url = upload_result_doc.get('secure_url')
-        # NOVIDADE: Upload da selfie com documento
         upload_result_selfie_doc = cloudinary.uploader.upload(arquivo_selfie_doc, folder="onboarding_selfies_docs")
         selfie_doc_url = upload_result_selfie_doc.get('secure_url')
-        # NOVIDADE: Upload da selfie de liveness
         upload_result_selfie_liveness = cloudinary.uploader.upload(arquivo_selfie_liveness, folder="onboarding_selfies_liveness")
         selfie_liveness_url = upload_result_selfie_liveness.get('secure_url')
     except Exception as e:
@@ -178,60 +173,54 @@ def verificar_pessoa_fisica():
     arquivo_frente.seek(0)
     frente_bytes = arquivo_frente.read()
     arquivo_selfie_doc.seek(0)
-    selfie_doc_bytes = arquivo_selfie_doc.read() # NOVIDADE
+    selfie_doc_bytes = arquivo_selfie_doc.read()
     arquivo_selfie_liveness.seek(0)
-    selfie_liveness_bytes = arquivo_selfie_liveness.read() # NOVIDADE
+    selfie_liveness_bytes = arquivo_selfie_liveness.read()
     
     workflow_results = {}
     status_geral = "APROVADO"
     
-    # --- ORQUESTRAÇÃO DE SERVIÇOS SEGUINDO O FLUXO IDWALL ---
-
-    # 1. Receita Federal + PEP
     rf_pep_result = data_service.check_receita_federal_pep(cpf_cliente)
     workflow_results['receita_federal_pep'] = rf_pep_result
     if rf_pep_result['status'] != 'APROVADO': status_geral = "PENDENCIA"
     
-    # 2. Liveness Passivo (na selfie com documento, ou na selfie de liveness - vamos usar a de liveness para o passivo)
     liveness_passivo_result = biometrics_service.check_liveness_passivo(selfie_liveness_bytes)
     workflow_results['liveness_passivo'] = liveness_passivo_result
     if liveness_passivo_result['status'] != 'APROVADO': status_geral = "PENDENCIA"
 
-    # 3. Face Match (entre a foto do documento, a selfie com documento e a selfie de liveness)
-    # Vamos fazer o Face Match entre a foto do documento e a selfie com liveness para o desafio ativo
     face_match_liveness_result = biometrics_service.check_facematch(foto_doc_b64, selfie_liveness_bytes)
     workflow_results['face_match_liveness'] = face_match_liveness_result
     if face_match_liveness_result['status'] != 'APROVADO': status_geral = "PENDENCIA"
     
-    # E um Face Match adicional para a selfie com documento (verificação de posse)
     face_match_doc_selfie_result = biometrics_service.check_facematch(foto_doc_b64, selfie_doc_bytes)
     workflow_results['face_match_selfie_com_documento'] = face_match_doc_selfie_result
     if face_match_doc_selfie_result['status'] != 'APROVADO': status_geral = "PENDENCIA"
 
-    # 4. Background Check (BGC)
     bgc_result = bgc_service.check_background(cpf_cliente, nome_cliente)
     workflow_results['background_check'] = bgc_result
     if bgc_result['status'] != 'APROVADO': status_geral = "PENDENCIA"
 
-    # 5. Validação do Documento (na foto do documento)
     validacao_doc_result = document_service.validate_document(frente_bytes)
     workflow_results['validacao_documento'] = validacao_doc_result
     if validacao_doc_result['status'] != 'APROVADO': status_geral = "PENDENCIA"
 
     resposta_final = {"status_geral": status_geral, "workflow_executado": workflow_results}
     
+    # NOVIDADE: AJUSTE NO BLOCO DE GRAVAÇÃO
     try:
         nova_verificacao = Verificacao(
             tipo_verificacao='PF',
             status_geral=status_geral,
             doc_frente_url=doc_frente_url,
-            selfie_url=selfie_liveness_url, # Usa a URL da selfie de liveness como principal
-            dados_extra_url={'selfie_documento_url': selfie_doc_url} # NOVIDADE: Armazena URL extra
+            selfie_url=selfie_liveness_url # Salva a selfie principal (do liveness)
+            # A linha abaixo foi comentada temporariamente. Ela causa o erro se o campo não existir no BD.
+            # dados_extra_url={'selfie_documento_url': selfie_doc_url} 
         )
         nova_verificacao.set_dados_entrada({'nome': nome_cliente, 'cpf': cpf_cliente})
         nova_verificacao.set_resultado_completo(resposta_final)
         db.session.add(nova_verificacao)
         db.session.commit()
+        logger.info(f"Verificação para {nome_cliente} salva com sucesso no BD.")
     except Exception as e:
         logger.error(f'Falha ao salvar no BD: {e}', exc_info=True)
         db.session.rollback()
