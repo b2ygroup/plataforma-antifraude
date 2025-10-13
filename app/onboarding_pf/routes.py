@@ -10,7 +10,7 @@ from google.cloud import vision
 from google.oauth2 import service_account
 import cloudinary
 import cloudinary.uploader
-# NOVIDADE: Importa o novo score_service
+# Importa todos os serviços necessários
 from app.services import bgc_service, biometrics_service, data_service, document_service, score_service
 
 bp = Blueprint('onboarding_pf', __name__)
@@ -57,51 +57,71 @@ def get_vision_client():
     return client
 
 def analisar_documento_com_google_vision(doc_frente_bytes):
-    # Esta função permanece inalterada
     logger = current_app.logger
     logger.info("OCR V7: Iniciando análise de documento...")
     try:
         client = get_vision_client()
-        if client is None: return {"status": "ERRO_CONFIGURACAO", "motivo": "Serviço de OCR não configurado corretamente."}
+        if client is None:
+            return {"status": "ERRO_CONFIGURACAO", "motivo": "Serviço de OCR não configurado corretamente."}
+
         image = vision.Image(content=doc_frente_bytes)
         response = client.text_detection(image=image)
         texts = response.text_annotations
-        if not texts: return {"status": "REPROVADO_OCR", "motivo": "Não foi possível detetar texto no documento."}
+        if not texts:
+            return {"status": "REPROVADO_OCR", "motivo": "Não foi possível detetar texto no documento."}
+
         full_text_com_newlines = texts[0].description
         logger.info(f"OCR V7: Texto completo extraído:\n---\n{full_text_com_newlines}\n---")
+        
         full_text_flat = full_text_com_newlines.replace('\n', ' ')
         dados_extraidos = {}
         campos_faltando = []
+
         cpf_padroes = [r'(\d{3}\.\d{3}\.\d{3}-\d{2})', r'(\d{3} \d{3} \d{3} \d{2})']
         for padrao in cpf_padroes:
             if match := re.search(padrao, full_text_flat):
-                dados_extraidos['cpf'] = match.group(1); break
-        nasc_padroes = [r'(?:DATA DE NASC|NASCIMENTO)\s*[:\s]*(\d{2}/\d{2}/\d{4})', r'\b(\d{2}/\d{2}/(?:19|20)\d{2})\b']
+                dados_extraidos['cpf'] = match.group(1)
+                break
+        
+        nasc_padroes = [
+            r'(?:DATA DE NASC|NASCIMENTO)\s*[:\s]*(\d{2}/\d{2}/\d{4})',
+            r'\b(\d{2}/\d{2}/(?:19|20)\d{2})\b'
+        ]
         for padrao in nasc_padroes:
             if match := re.search(padrao, full_text_flat, re.IGNORECASE):
-                dados_extraidos['data_nascimento'] = match.group(1); break
-        nome_padroes = [r'(?:NOME|NOME COMPLETO)\n*([A-Z\s]+?)(?=\s\s|NASCIMENTO|FILIAÇÃO|CPF|DOC|REGISTRO|$)', r'NOME\s*([A-Z\s]+?)(?=\s\s|NASCIMENTO|FILIAÇÃO|CPF|DOC|REGISTRO|$)']
+                dados_extraidos['data_nascimento'] = match.group(1)
+                break
+
+        nome_padroes = [
+            r'(?:NOME|NOME COMPLETO)\n*([A-Z\s]+?)(?=\s\s|NASCIMENTO|FILIAÇÃO|CPF|DOC|REGISTRO|$)',
+            r'NOME\s*([A-Z\s]+?)(?=\s\s|NASCIMENTO|FILIAÇÃO|CPF|DOC|REGISTRO|$)',
+        ]
         if 'nome' not in dados_extraidos:
              for padrao in nome_padroes:
                 if match := re.search(padrao, full_text_com_newlines, re.IGNORECASE):
                     nome = match.group(1).replace('\n', ' ').strip()
                     nome = re.sub(r'\bHABILITA\b', '', nome, flags=re.IGNORECASE).strip()
-                    dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome); break
+                    dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
+                    break
+
         if 'nome' not in dados_extraidos: campos_faltando.append('nome')
         if 'cpf' not in dados_extraidos: campos_faltando.append('cpf')
         if 'data_nascimento' not in dados_extraidos: campos_faltando.append('data_nascimento')
+
         if campos_faltando:
             motivo = f"Não foi possível extrair os seguintes campos: {', '.join(campos_faltando)}."
             return {"status": "REPROVADO_OCR", "motivo": motivo}
-        return {"status": "SUCESSO", "dados": dados_extraidos, "foto_3x4_base64": "..."}
+
+        logger.info(f"OCR V7: Dados extraídos com sucesso: {dados_extraidos}")
+        return {"status": "SUCESSO", "tipo_documento_identificado": "AUTO", "dados": dados_extraidos, "foto_3x4_base64": "..."}
     except Exception as e:
         logger.error(f"OCR V7: Erro inesperado na função de análise: {e}", exc_info=True)
         return {"status": "ERRO_API", "motivo": "Ocorreu um erro interno no serviço de IA."}
 
+
 @bp.route('/extrair-ocr', methods=['POST'])
 @require_api_key
 def extrair_ocr():
-    # Esta função permanece inalterada
     if 'documento_frente' not in request.files:
         return jsonify({"erro": "O arquivo 'documento_frente' é obrigatório."}), 400
     doc_bytes = request.files['documento_frente'].read()
@@ -135,7 +155,7 @@ def verificar_pessoa_fisica():
         selfie_liveness_url = cloudinary.uploader.upload(arquivo_selfie_liveness, folder="onboarding_selfies_liveness").get('secure_url')
     except Exception as e:
         logger.error(f"Erro no upload para o Cloudinary: {e}", exc_info=True)
-        return jsonify({"erro": f"Falha no upload de imagens de evidência: {e}"}), 500
+        return jsonify({"erro": f"Falha no upload de imagens: {e}"}), 500
     
     arquivo_frente.seek(0); frente_bytes = arquivo_frente.read()
     arquivo_selfie_doc.seek(0); selfie_doc_bytes = arquivo_selfie_doc.read()
@@ -160,7 +180,6 @@ def verificar_pessoa_fisica():
             
     resposta_final = {"status_geral": status_geral, "workflow_executado": workflow_executado}
     
-    # --- NOVIDADE: Etapa de Cálculo de Score ---
     score_result = score_service.calculate_risk_score(workflow_executado)
     resposta_final["risk_score"] = score_result
     
@@ -171,7 +190,7 @@ def verificar_pessoa_fisica():
             doc_frente_url=doc_frente_url,
             selfie_url=selfie_liveness_url,
             dados_extra_json={'selfie_documento_url': selfie_doc_url},
-            risk_score=score_result.get('score') # Salva o score no BD
+            risk_score=score_result.get('score')
         )
         nova_verificacao.set_dados_entrada({'nome': nome_cliente, 'cpf': cpf_cliente})
         nova_verificacao.set_resultado_completo(resposta_final)

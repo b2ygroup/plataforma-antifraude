@@ -12,7 +12,6 @@ def index():
     """
     return render_template('dashboard.html', title='Dashboard de Verificações')
 
-# NOVIDADE: Rota de teste para diagnosticar a conexão com a base de dados
 @bp.route('/api/db-test')
 def db_test():
     logger = current_app.logger
@@ -47,8 +46,11 @@ def get_verifications():
         data = []
         for v in verifications:
             try:
+                # Verifica se os campos não são nulos antes de processar
                 dados_completos = json.loads(v.resultado_completo_json) if v.resultado_completo_json else {}
                 timestamp_str = v.timestamp.strftime('%d/%m/%Y %H:%M:%S') if v.timestamp else 'Data indisponível'
+                
+                # O SQLAlchemy já converte o tipo JSON para um dicionário Python aqui.
                 dados_extra = v.dados_extra_json if v.dados_extra_json else {}
 
                 data.append({
@@ -59,7 +61,8 @@ def get_verifications():
                     'dados_completos': dados_completos,
                     'doc_frente_url': v.doc_frente_url,
                     'selfie_url': v.selfie_url,
-                    'dados_extra': dados_extra
+                    'dados_extra': dados_extra,
+                    'risk_score': v.risk_score # Adiciona o score aos dados
                 })
             except Exception as e:
                 logger.error(f"Erro ao processar o registo de verificação com ID {v.id}: {e}")

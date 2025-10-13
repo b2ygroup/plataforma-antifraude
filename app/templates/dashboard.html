@@ -7,7 +7,7 @@
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
-        :root { --primary-color: #007bff; --secondary-color: #f8f9fa; --border-color: #dee2e6; --success-color: #28a745; --error-color: #dc3545; }
+        :root { --primary-color: #007bff; --secondary-color: #f8f9fa; --border-color: #dee2e6; --success-color: #28a745; --error-color: #dc3545; --warning-color: #ffc107; }
         body { font-family: 'Roboto', sans-serif; background-color: var(--secondary-color); margin: 0; color: #212529; }
         .container { max-width: 1200px; margin: 30px auto; padding: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); }
         h1 { margin-top: 0; }
@@ -28,6 +28,10 @@
         .modal-images img { max-width: 200px; height: auto; border-radius: 4px; border: 1px solid #ddd; }
         .modal-images p { font-weight: bold; margin-top: 5px; font-size: 14px; }
         pre { background-color: #eee; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; font-size: 13px; max-height: 50vh; overflow-y: auto; }
+        .score { font-weight: bold; }
+        .score-high { color: var(--error-color); }
+        .score-medium { color: var(--warning-color); }
+        .score-low { color: var(--success-color); }
     </style>
 </head>
 <body>
@@ -39,6 +43,7 @@
                     <th>ID</th>
                     <th>Tipo</th>
                     <th>Status</th>
+                    <th>Score</th>
                     <th>Data</th>
                     <th>Ações</th>
                 </tr>
@@ -60,29 +65,39 @@
     <script>
         async function loadVerifications() {
             const tableBody = document.querySelector("#verifications-table tbody");
-            tableBody.innerHTML = '<tr><td colspan="5">Carregando dados...</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="6">Carregando dados...</td></tr>';
 
             try {
                 const response = await fetch('/api/verifications');
-                if (!response.ok) {
-                    throw new Error(`Erro de rede: ${response.statusText}`);
-                }
                 const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.erro || 'Ocorreu um erro ao buscar os dados.');
+                }
 
                 tableBody.innerHTML = '';
 
                 if (data.length === 0) {
-                    tableBody.innerHTML = '<tr><td colspan="5">Nenhuma verificação encontrada.</td></tr>';
+                    tableBody.innerHTML = '<tr><td colspan="6">Nenhuma verificação encontrada.</td></tr>';
                     return;
                 }
 
                 data.forEach(verification => {
                     const row = document.createElement('tr');
                     
+                    let scoreHtml = 'N/A';
+                    if (verification.risk_score !== null && verification.risk_score !== undefined) {
+                        let scoreClass = 'score-medium';
+                        if (verification.risk_score >= 800) scoreClass = 'score-low';
+                        else if (verification.risk_score < 500) scoreClass = 'score-high';
+                        scoreHtml = `<span class="score ${scoreClass}">${verification.risk_score}</span>`;
+                    }
+
                     row.innerHTML = `
                         <td>${verification.id}</td>
                         <td>${verification.tipo}</td>
                         <td><span class="status status-${verification.status}">${verification.status}</span></td>
+                        <td>${scoreHtml}</td>
                         <td>${verification.timestamp}</td>
                         <td><button class="button-details">Ver Detalhes</button></td>
                     `;
@@ -96,7 +111,7 @@
 
             } catch (error) {
                 console.error("Erro ao carregar verificações:", error);
-                tableBody.innerHTML = `<tr><td colspan="5">Erro ao carregar os dados. Detalhe: ${error.message}</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="6">Erro ao carregar os dados. Detalhe: ${error.message}</td></tr>`;
             }
         }
 
@@ -120,7 +135,6 @@
                 `;
             }
 
-            // NOVIDADE: Adiciona a "Selfie com Documento" se ela existir nos dados extras
             if (verification.dados_extra && verification.dados_extra.selfie_documento_url) {
                  modalImagesContainer.innerHTML += `
                     <div>
