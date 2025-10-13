@@ -10,7 +10,8 @@ from google.cloud import vision
 from google.oauth2 import service_account
 import cloudinary
 import cloudinary.uploader
-from app.services import bgc_service, biometrics_service
+# Importando TODOS os nossos serviços
+from app.services import bgc_service, biometrics_service, data_service, document_service
 
 bp = Blueprint('onboarding_pf', __name__)
 
@@ -21,6 +22,7 @@ cloudinary.config(
     secure=True
 )
 
+# O decorator require_api_key permanece o mesmo
 def require_api_key(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -36,6 +38,7 @@ def require_api_key(f):
             return jsonify({"erro": "Chave de API inválida ou não fornecida."}), 401
     return decorated_function
 
+# A função get_vision_client e a função de OCR permanecem as mesmas
 def get_vision_client():
     logger = current_app.logger
     google_creds_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
@@ -46,7 +49,6 @@ def get_vision_client():
         client = vision.ImageAnnotatorClient(credentials=credentials)
     else:
         logger.info("Autenticando no Google Vision via arquivo local (Desenvolvimento).")
-        # Este caminho pode precisar de ajuste dependendo de onde você executa o servidor localmente
         credentials_path = os.path.join(current_app.root_path, '..', 'google-credentials.json')
         if os.path.exists(credentials_path):
             os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
@@ -73,12 +75,11 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         full_text_com_newlines = texts[0].description
         logger.info(f"OCR V6: Texto completo extraído:\n---\n{full_text_com_newlines}\n---")
         
-        # Normaliza o texto para facilitar a busca com regex
         full_text_flat = full_text_com_newlines.replace('\n', ' ')
         dados_extraidos = {}
         campos_faltando = []
 
-        # --- Lógica de extração de CPF ---
+        # CPF
         cpf_padroes = [r'(\d{3}\.\d{3}\.\d{3}-\d{2})', r'(\d{3} \d{3} \d{3} \d{2})']
         for padrao in cpf_padroes:
             match = re.search(padrao, full_text_flat)
@@ -86,10 +87,10 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
                 dados_extraidos['cpf'] = match.group(1)
                 break
         
-        # --- Lógica de extração de Data de Nascimento ---
+        # Data de Nascimento
         nasc_padroes = [
             r'(?:DATA DE NASC|NASCIMENTO)\s*[:\s]*(\d{2}/\d{2}/\d{4})',
-            r'\b(\d{2}/\d{2}/(?:19|20)\d{2})\b' # Busca por qualquer data no formato, mais genérico
+            r'\b(\d{2}/\d{2}/(?:19|20)\d{2})\b'
         ]
         for padrao in nasc_padroes:
             match = re.search(padrao, full_text_flat, re.IGNORECASE)
@@ -97,10 +98,10 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
                 dados_extraidos['data_nascimento'] = match.group(1)
                 break
 
-        # --- Lógica de extração de Nome (mais robusta) ---
+        # Nome
         nome_padroes = [
-            r'NOME\n([A-Z\s]+)', # Nome em nova linha após "NOME" (CNH)
-            r'NOME\s*([A-Z\s]+?)(?=\s\s|REGISTRO|CPF|DOC)', # Nome na mesma linha
+            r'NOME\n([A-Z\s]+)',
+            r'NOME\s*([A-Z\s]+?)(?=\s\s|REGISTRO|CPF|DOC)',
         ]
         if 'nome' not in dados_extraidos:
              for padrao in nome_padroes:
@@ -110,7 +111,6 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
                     dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
                     break
 
-        # Verificação final e log detalhado
         if 'nome' not in dados_extraidos: campos_faltando.append('nome')
         if 'cpf' not in dados_extraidos: campos_faltando.append('cpf')
         if 'data_nascimento' not in dados_extraidos: campos_faltando.append('data_nascimento')
@@ -151,13 +151,14 @@ def verificar_pessoa_fisica():
     if 'documento_frente' not in request.files or 'selfie' not in request.files:
         return jsonify({"erro": "Arquivos 'documento_frente' e 'selfie' são obrigatórios."}), 400
     
+    # Input de dados
     nome_cliente = request.form.get('nome', 'N/A')
     cpf_cliente = request.form.get('cpf', 'N/A')
     foto_doc_b64 = request.form.get('foto_documento_b64', '')
     arquivo_frente = request.files['documento_frente']
     arquivo_selfie = request.files['selfie']
 
-    logger.info(f'ONBOARDING API-FIRST: Iniciando fluxo para {nome_cliente}')
+    logger.info(f'ONBOARDING V2 (idwall flow): Iniciando fluxo para {nome_cliente}')
     
     try:
         upload_result_doc = cloudinary.uploader.upload(arquivo_frente, folder="onboarding_docs")
@@ -166,30 +167,43 @@ def verificar_pessoa_fisica():
         selfie_url = upload_result_selfie.get('secure_url')
     except Exception as e:
         logger.error(f"Erro no upload para o Cloudinary: {e}")
-        return jsonify({"erro": f"Falha no upload de imagens: {e}"}), 500
-
+        return jsonify({"erro": f"Falha no upload de imagens de evidência: {e}"}), 500
+    
     arquivo_frente.seek(0)
+    frente_bytes = arquivo_frente.read()
     arquivo_selfie.seek(0)
     selfie_bytes = arquivo_selfie.read()
     
     workflow_results = {}
     status_geral = "APROVADO"
     
-    workflow_results['liveness_ativo'] = biometrics_service.check_liveness_ativo()
-    workflow_results['liveness_passivo'] = biometrics_service.check_liveness_passivo(selfie_bytes)
-    workflow_results['face_match'] = biometrics_service.check_facematch(foto_doc_b64, selfie_bytes)
-    if workflow_results['face_match']['status'] != 'APROVADO':
-        status_geral = "PENDENCIA"
+    # --- ORQUESTRAÇÃO DE SERVIÇOS SEGUINDO O FLUXO IDWALL ---
 
-    if os.environ.get('BGC_PROVIDER_API_KEY'):
-        workflow_results['background_check'] = bgc_service.check_background(cpf_cliente, nome_cliente)
-    else:
-        logger.warning("BGC Service: Chave de API não encontrada. Usando simulação de BGC.")
-        workflow_results['background_check'] = {"status": "NAO_EXECUTADO", "detalhes": "Serviço de BGC real não configurado."}
+    # 1. Receita Federal + PEP
+    rf_pep_result = data_service.check_receita_federal_pep(cpf_cliente)
+    workflow_results['receita_federal_pep'] = rf_pep_result
+    if rf_pep_result['status'] != 'APROVADO': status_geral = "PENDENCIA"
     
-    if workflow_results.get('background_check', {}).get('status') != 'APROVADO':
-        status_geral = "PENDENCIA"
-            
+    # 2. Liveness Passivo
+    liveness_passivo_result = biometrics_service.check_liveness_passivo(selfie_bytes)
+    workflow_results['liveness_passivo'] = liveness_passivo_result
+    if liveness_passivo_result['status'] != 'APROVADO': status_geral = "PENDENCIA"
+
+    # 3. Face Match
+    face_match_result = biometrics_service.check_facematch(foto_doc_b64, selfie_bytes)
+    workflow_results['face_match'] = face_match_result
+    if face_match_result['status'] != 'APROVADO': status_geral = "PENDENCIA"
+
+    # 4. Background Check (BGC)
+    bgc_result = bgc_service.check_background(cpf_cliente, nome_cliente)
+    workflow_results['background_check'] = bgc_result
+    if bgc_result['status'] != 'APROVADO': status_geral = "PENDENCIA"
+
+    # 5. Validação do Documento
+    validacao_doc_result = document_service.validate_document(frente_bytes)
+    workflow_results['validacao_documento'] = validacao_doc_result
+    if validacao_doc_result['status'] != 'APROVADO': status_geral = "PENDENCIA"
+
     resposta_final = {"status_geral": status_geral, "workflow_executado": workflow_results}
     
     try:

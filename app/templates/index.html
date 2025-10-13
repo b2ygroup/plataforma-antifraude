@@ -69,7 +69,7 @@
                 await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
                 await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
-                await faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL)
+                await faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL);
                 console.log("LOG: Modelos da IA carregados com sucesso!");
                 iaLoader.style.display = 'none';
                 startButton.disabled = false;
@@ -170,8 +170,7 @@
             const formData = new FormData();
             formData.append('documento_frente', frenteBlob, 'doc_frente.jpg');
             try {
-                // SUBSTITUA AQUI
-                const response = await fetch('/onboarding/pf/extrair-ocr', { method: 'POST', body: formData, headers: {'X-API-KEY': 'Le010584'} });
+                const response = await fetch('/onboarding/pf/extrair-ocr', { method: 'POST', body: formData, headers: {'X-API-KEY': 'SUA_API_KEY_AQUI'} });
                 ocrResultData = await response.json();
                 if (response.status !== 200 || ocrResultData.status !== 'SUCESSO') {
                     throw new Error(ocrResultData.motivo || 'Falha desconhecida no OCR');
@@ -198,8 +197,7 @@
             formData.append('documento_frente', capturedDocFrenteBlob, 'doc_frente.jpg');
             formData.append('selfie', capturedSelfieBlob, 'selfie.jpg');
             try {
-                // E SUBSTITUA AQUI TAMBÉM
-                const response = await fetch('/onboarding/pf/verificar', { method: 'POST', body: formData, headers: {'X-API-KEY': 'Le010584'} });
+                const response = await fetch('/onboarding/pf/verificar', { method: 'POST', body: formData, headers: {'X-API-KEY': 'SUA_API_KEY_AQUI'} });
                 const data = await response.json();
                 displayResults(data);
             } catch (error) { alert("Erro de comunicação com o servidor. Tente novamente."); restart(); } finally { showStep(6); }
@@ -230,6 +228,7 @@
         
         function formatStepName(key) { return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); }
 
+        // --- LIVENESS ATIVO ATUALIZADO ---
         async function runLivenessSequence() {
             const instructionEl = document.getElementById('selfie-instruction');
             const overlayEl = document.getElementById('selfie-overlay-shape');
@@ -240,19 +239,9 @@
             instructionEl.style.display = 'block';
             
             let challengeState = {
-                current: 'CENTER',
+                current: 'CENTER', // Os estados agora são CENTER, SMILE, DONE
                 faceCentered: false,
-                blinked: false,
-                smiled: false,
-                lastBlinkTime: 0
-            };
-
-            const getEyeAspectRatio = (landmarks) => {
-                const leftEye = landmarks.getLeftEye();
-                const rightEye = landmarks.getRightEye();
-                const dist = (p1, p2) => Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
-                const ear = (eye) => (dist(eye[1], eye[5]) + dist(eye[2], eye[4])) / (2.0 * dist(eye[0], eye[3]));
-                return (ear(leftEye) + ear(rightEye)) / 2.0;
+                smiled: false
             };
 
             faceApiInterval = setInterval(async () => {
@@ -268,8 +257,8 @@
                 const face = detections[0];
                 const box = face.detection.box;
                 const expressions = face.expressions;
-                const landmarks = face.landmarks;
 
+                // Desafio 1: Centralizar o Rosto
                 if (challengeState.current === 'CENTER') {
                     instructionEl.innerText = "Centralize seu rosto na moldura";
                     const centerX = box.x + box.width / 2;
@@ -281,27 +270,16 @@
                     if (isCentered && sufficientSize) {
                         overlayEl.classList.add('detected');
                         challengeState.faceCentered = true;
-                        challengeState.current = 'BLINK';
+                        challengeState.current = 'SMILE'; // Avança direto para o desafio do sorriso
                     } else {
                         overlayEl.classList.remove('detected');
                         if (!sufficientSize) instructionEl.innerText = "Aproxime-se um pouco";
                     }
                 }
 
-                if (challengeState.current === 'BLINK') {
-                    instructionEl.innerText = "Agora, PISQUE os olhos";
-                    const ear = getEyeAspectRatio(landmarks);
-                    const BLINK_THRESHOLD = 0.25;
-
-                    if (ear < BLINK_THRESHOLD && (Date.now() - challengeState.lastBlinkTime > 1000)) {
-                        challengeState.blinked = true;
-                        challengeState.lastBlinkTime = Date.now();
-                        challengeState.current = 'SMILE';
-                    }
-                }
-
+                // Desafio 2: Sorrir (Prova de vida ativa)
                 if (challengeState.current === 'SMILE') {
-                    instructionEl.innerText = "Para finalizar, SORRIA";
+                    instructionEl.innerText = "Agora, SORRIA!";
                     const SMILE_THRESHOLD = 0.8;
                     if (expressions.happy > SMILE_THRESHOLD) {
                         challengeState.smiled = true;
@@ -309,6 +287,7 @@
                     }
                 }
 
+                // Finalização
                 if (challengeState.current === 'DONE') {
                     instructionEl.innerText = "Excelente!";
                     clearInterval(faceApiInterval);
