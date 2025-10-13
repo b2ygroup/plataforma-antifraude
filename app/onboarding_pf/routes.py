@@ -10,7 +10,7 @@ from google.oauth2 import service_account
 import cloudinary
 import cloudinary.uploader
 from app.services import bgc_service, biometrics_service, data_service, document_service, score_service
-from app.decorators import require_api_key # Importa do novo arquivo
+# A importação do decorator foi removida daqui
 
 bp = Blueprint('onboarding_pf', __name__)
 
@@ -73,7 +73,7 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         return {"status": "ERRO_API", "motivo": "Ocorreu um erro interno no serviço de IA."}
 
 @bp.route('/extrair-ocr', methods=['POST'])
-@require_api_key
+# O decorator @require_api_key foi REMOVIDO daqui
 def extrair_ocr():
     if 'documento_frente' not in request.files:
         return jsonify({"erro": "O arquivo 'documento_frente' é obrigatório."}), 400
@@ -84,7 +84,7 @@ def extrair_ocr():
         return jsonify(resultado_ocr), 400
 
 @bp.route('/verificar', methods=['POST'])
-@require_api_key
+# O decorator @require_api_key foi REMOVIDO daqui
 def verificar_pessoa_fisica():
     logger = current_app.logger
     if not all(k in request.files for k in ['documento_frente', 'selfie_documento', 'selfie_liveness']):
@@ -107,7 +107,7 @@ def verificar_pessoa_fisica():
     request.files['selfie_liveness'].seek(0); selfie_liveness_bytes = request.files['selfie_liveness'].read()
     
     workflow_executado = {}
-    status_geral = "APROVADO"
+    status_geral = "APROVado"
     
     etapas = {
         'receita_federal_pep': data_service.check_receita_federal_pep(cpf_cliente),

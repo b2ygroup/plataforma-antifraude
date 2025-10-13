@@ -3,10 +3,10 @@
 from flask import request, jsonify, current_app
 from app.autenticacao import bp
 from app.services import auth_service
-from app.decorators import require_api_key # NOVIDADE: Importa do novo local
+# A importação do decorator foi removida daqui
 
 @bp.route('/autenticar', methods=['POST'])
-@require_api_key
+# O decorator @require_api_key foi REMOVIDO daqui
 def autenticar_transacao():
     logger = current_app.logger
     
