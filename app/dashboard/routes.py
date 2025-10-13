@@ -12,6 +12,28 @@ def index():
     """
     return render_template('dashboard.html', title='Dashboard de Verificações')
 
+# NOVIDADE: Rota de teste para diagnosticar a conexão com a base de dados
+@bp.route('/api/db-test')
+def db_test():
+    logger = current_app.logger
+    logger.info("Executando teste de conexão com a base de dados...")
+    try:
+        # Uma consulta simples para testar a conexão e a existência da tabela
+        count = Verificacao.query.count()
+        return jsonify({
+            "status": "success",
+            "message": f"Conexão com o BD bem-sucedida. Encontrados {count} registos na tabela Verificacao."
+        })
+    except Exception as e:
+        # Se falhar, retorna o erro específico em formato JSON
+        error_message = str(e)
+        logger.error(f"FALHA NO TESTE DE BD: {error_message}", exc_info=True)
+        return jsonify({
+            "status": "error",
+            "message": "Falha na conexão ou consulta à base de dados.",
+            "error_details": error_message
+        }), 500
+
 @bp.route('/api/verifications')
 def get_verifications():
     """
@@ -46,6 +68,5 @@ def get_verifications():
         return jsonify(data)
         
     except Exception as e:
-        # NOVIDADE: Retorna a mensagem de erro específica para o frontend
         logger.error(f"Erro 500 na API /api/verifications. Detalhes: {e}", exc_info=True)
         return jsonify({"erro": f"Ocorreu um erro interno no servidor: {str(e)}"}), 500
