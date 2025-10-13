@@ -16,8 +16,11 @@ class Verificacao(db.Model):
     doc_frente_url = db.Column(db.String(255))
     selfie_url = db.Column(db.String(255))
 
-    # NOVIDADE: Coluna para guardar dados extras, como a URL da selfie com documento
+    # Coluna para guardar dados extras, como a URL da selfie com documento
     dados_extra_json = db.Column(db.JSON, nullable=True)
+
+    # NOVIDADE: Coluna para armazenar o score de risco calculado
+    risk_score = db.Column(db.Integer, index=True, nullable=True)
 
     def __repr__(self):
         return f'<Verificação {self.id} [{self.tipo_verificacao}] - {self.status_geral}>'
@@ -26,4 +29,8 @@ class Verificacao(db.Model):
         self.dados_entrada_json = json.dumps(dados)
         
     def set_resultado_completo(self, resultado):
-        self.resultado_completo_json = json.dumps(resultado, indent=2)
+        # Garante que o resultado seja sempre um dicionário antes de converter para JSON
+        if isinstance(resultado, dict):
+            self.resultado_completo_json = json.dumps(resultado, indent=2)
+        else:
+            self.resultado_completo_json = str(resultado)

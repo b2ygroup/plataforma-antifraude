@@ -4,7 +4,7 @@ from app.models import Verificacao # Importa o seu modelo
 
 app = create_app()
 
-# NOVIDADE: Disponibiliza 'db' e 'Verificacao' automaticamente no 'flask shell'
+# Disponibiliza 'db' e 'Verificacao' automaticamente no 'flask shell'
 @app.shell_context_processor
 def make_shell_context():
     return {'db': db, 'Verificacao': Verificacao}
