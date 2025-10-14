@@ -39,7 +39,7 @@
         #result-container { text-align: left; }
         .result-section, .result-card { border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 15px; }
         .result-header, .result-card-header { background-color: #f8f9fa; padding: 12px 15px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-        .result-body, .result-card-body { padding: 15px; font-size: 14px; }
+        .result-body, .result-card-body { padding: 15px; font-size: 14px; display: none; }
         .result-card-body { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .detail-item { padding: 10px; background-color: var(--secondary-color); border-radius: 6px; }
         .detail-item strong { display: block; color: var(--light-text-color); font-size: 12px; margin-bottom: 4px; text-transform: uppercase; }
@@ -170,7 +170,6 @@
             webcamElement.srcObject = stream;
             activeStream = stream;
 
-            // ✅ CORREÇÃO 1: Lógica para validar a selfie com documento (Etapa 4)
             if (detectFace && instructionEl) {
                 instructionEl.style.display = 'block';
                 faceApiInterval = setInterval(async () => {
@@ -179,7 +178,7 @@
                     }
                     const detections = await faceapi.detectAllFaces(webcamElement, new faceapi.TinyFaceDetectorOptions());
                     
-                    // Lógica específica para a selfie com documento
+                    // ✅ CORREÇÃO 1: Lógica para validar a selfie com documento (Etapa 4)
                     if (type === 'selfie_doc') {
                         // Exige pelo menos 2 rostos: o do usuário e o da foto 3x4 do documento
                         if (detections && detections.length > 1) {
@@ -191,6 +190,29 @@
                         } else {
                             instructionEl.innerText = "Posicione seu rosto e a foto do documento na câmera.";
                             if(overlayEl) overlayEl.classList.remove('detected');
+                        }
+                    } else { // Lógica para outros tipos de detecção (se houver)
+                        const isCenteredAndSized = (face) => {
+                             const box = face.box;
+                             const centerX = box.x + box.width / 2;
+                             const centerY = box.y + box.height / 2;
+                             const isCentered = (centerX > webcamElement.videoWidth * 0.3 && centerX < webcamElement.videoWidth * 0.7) &&
+                                              (centerY > webcamElement.videoHeight * 0.3 && centerY < webcamElement.videoHeight * 0.7);
+                             const sufficientSize = box.width > webcamElement.videoWidth * 0.3;
+                             return isCentered && sufficientSize;
+                        }
+
+                        if (!detections || detections.length === 0) {
+                            instructionEl.innerText = "Nenhum rosto detectado";
+                            if(overlayEl) overlayEl.classList.remove('detected');
+                        } else {
+                            if (isCenteredAndSized(detections[0])) {
+                                instructionEl.innerText = "Rosto centralizado!";
+                                if(overlayEl) overlayEl.classList.add('detected');
+                            } else {
+                                instructionEl.innerText = "Centralize seu rosto na moldura.";
+                                if(overlayEl) overlayEl.classList.remove('detected');
+                            }
                         }
                     }
                 }, 500);
