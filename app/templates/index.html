@@ -51,7 +51,7 @@
         .final-status.APROVADO { background-color: var(--success-color); }
         .final-status.PENDENCIA { background-color: var(--error-color); }
         .file-upload-wrapper { position: relative; overflow: hidden; display: inline-block; width: 100%; margin-top: 10px; }
-        .file-upload-wrapper input[type="file"] { font-size: 100px; position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; }
+        .file-upload-wrapper input[type="file"] { font-size: 100px; position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
         .file-upload-button { width: 100%; padding: 15px; background-color: #6c757d; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.3s; text-align: center; display: block; }
         .file-upload-button:hover { background-color: #5a6268; }
         #file-upload-name { margin-top: 10px; font-size: 14px; color: var(--light-text-color); }
@@ -148,65 +148,52 @@
         }
 
         async function startCamera(type, detectFace = false) {
-            const isDoc = type.startsWith('doc');
             const webcamElement = document.getElementById(`${type}-webcam`);
             const overlayEl = document.getElementById(`${type}-overlay-shape`);
             const instructionEl = document.getElementById(`${type}-instruction`);
-
-            const preferredFacingMode = isDoc ? 'environment' : 'user';
+            let stream = null;
 
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: preferredFacingMode } });
-                webcamElement.srcObject = stream;
-                activeStream = stream;
+                const preferredFacingMode = type.startsWith('doc') ? 'environment' : 'user';
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: preferredFacingMode } });
             } catch (err) {
-                console.warn(`Falha ao obter câmera '${preferredFacingMode}'. Tentando com a câmera padrão.`);
+                console.warn(`Falha ao obter câmera preferencial. Tentando alternativa.`);
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
-                    webcamElement.srcObject = stream;
-                    activeStream = stream;
+                    stream = await navigator.mediaDevices.getUserMedia({ video: {} });
                 } catch (finalErr) {
-                    console.error("Erro definitivo ao acessar a câmera:", finalErr);
-                    let userMessage = "Não foi possível acessar a câmera. Verifique as permissões do navegador e tente novamente.";
-                    if (finalErr.name === 'NotReadableError') {
-                        userMessage = "Não foi possível iniciar a câmera. Verifique se ela não está sendo usada por outro aplicativo (Zoom, etc.) ou se a tampa da lente está aberta. Reiniciar o computador pode resolver o problema.";
-                    } else if (finalErr.name === 'NotAllowedError') {
-                        userMessage = "Você negou a permissão de acesso à câmera. Por favor, habilite a permissão nas configurações do seu navegador para este site.";
-                    }
-                    alert(userMessage);
+                    alert("Erro definitivo ao acessar a câmera. Verifique as permissões no seu navegador.");
                     restart();
                     return false;
                 }
             }
             
+            webcamElement.srcObject = stream;
+            activeStream = stream;
+
+            // ✅ CORREÇÃO 1: Lógica para validar a selfie com documento (Etapa 4)
             if (detectFace && instructionEl) {
                 instructionEl.style.display = 'block';
                 faceApiInterval = setInterval(async () => {
+                    if (!webcamElement || webcamElement.readyState < 3) {
+                        return; 
+                    }
                     const detections = await faceapi.detectAllFaces(webcamElement, new faceapi.TinyFaceDetectorOptions());
                     
-                    if (!detections || detections.length === 0) {
-                        instructionEl.innerText = "Nenhum rosto detectado";
-                        if(overlayEl) overlayEl.classList.remove('detected');
-                        return;
+                    // Lógica específica para a selfie com documento
+                    if (type === 'selfie_doc') {
+                        // Exige pelo menos 2 rostos: o do usuário e o da foto 3x4 do documento
+                        if (detections && detections.length > 1) {
+                            instructionEl.innerText = "Excelente! Rosto e documento detectados.";
+                            if(overlayEl) overlayEl.classList.add('detected');
+                        } else if (detections && detections.length === 1) {
+                            instructionEl.innerText = "Aproxime o documento para a câmera ler os dois rostos.";
+                            if(overlayEl) overlayEl.classList.remove('detected');
+                        } else {
+                            instructionEl.innerText = "Posicione seu rosto e a foto do documento na câmera.";
+                            if(overlayEl) overlayEl.classList.remove('detected');
+                        }
                     }
-
-                    const face = detections[0];
-                    const box = face.box; 
-                    
-                    const centerX = box.x + box.width / 2;
-                    const centerY = box.y + box.height / 2;
-                    const isCentered = (centerX > webcamElement.videoWidth * 0.3 && centerX < webcamElement.videoWidth * 0.7) &&
-                                     (centerY > webcamElement.videoHeight * 0.3 && centerY < webcamElement.videoHeight * 0.7);
-                    const sufficientSize = box.width > webcamElement.videoWidth * 0.3;
-
-                    if (isCentered && sufficientSize) {
-                        if(overlayEl) overlayEl.classList.add('detected');
-                        instructionEl.innerText = "Rosto e documento centralizados!";
-                    } else {
-                        if(overlayEl) overlayEl.classList.remove('detected');
-                        instructionEl.innerText = "Centralize seu rosto E o documento na moldura.";
-                    }
-                }, 200);
+                }, 500);
             }
             
             return true;
@@ -320,7 +307,6 @@
             }
         }
 
-        // ✅ NOVIDADE: `displayResults` foi atualizada para exibir o resultado do BGC de forma clara.
         function displayResults(data) {
             const resultContainer = document.getElementById('result-container');
             const finalStatusContainer = document.getElementById('final-status-container');
@@ -331,7 +317,6 @@
 
             for (const [key, value] of Object.entries(data.workflow_executado)) {
                 
-                // Card para Face Match
                 if (key.startsWith('face_match')) {
                     const title = key === 'face_match_liveness' ? 'Biometria Facial (Selfie vs. Documento)' : 'Biometria Facial (Selfie com Doc vs. Documento)';
                     const similaridade = value.similaridade ? (value.similaridade * 100).toFixed(2) + '%' : 'N/A';
@@ -358,7 +343,6 @@
                     `;
                     resultContainer.innerHTML += cardHTML;
                 }
-                // ✅ NOVIDADE: Card para Background Check (BGC)
                 else if (key === 'background_check') {
                     const statusClass = (value.status || 'PENDENCIA').replace('SUCESSO', 'APROVADO');
                     let detailsHTML = '';
@@ -388,7 +372,6 @@
                     `;
                     resultContainer.innerHTML += cardHTML;
                 }
-                // Card genérico para as outras verificações
                 else {
                     const section = document.createElement('div');
                     section.className = 'result-section';
@@ -430,6 +413,12 @@
             };
 
             faceApiInterval = setInterval(async () => {
+                // ✅ CORREÇÃO 2: Garante que o vídeo da câmera está pronto antes de analisar
+                if (!webcamEl || webcamEl.readyState < 3) {
+                    instructionEl.innerText = "Aguardando câmera...";
+                    return; 
+                }
+
                 const detections = await faceapi.detectAllFaces(webcamEl, new faceapi.TinyFaceDetectorOptions())
                     .withFaceLandmarks().withFaceExpressions();
                 
@@ -447,9 +436,9 @@
                     instructionEl.innerText = "Centralize seu rosto na moldura";
                     const centerX = box.x + box.width / 2;
                     const centerY = box.y + box.height / 2;
-                    const isCentered = (centerX > webcamElement.videoWidth * 0.3 && centerX < webcamElement.videoWidth * 0.7) &&
-                                     (centerY > webcamElement.videoHeight * 0.3 && centerY < webcamElement.videoHeight * 0.7);
-                    const sufficientSize = box.width > webcamElement.videoWidth * 0.4;
+                    const isCentered = (centerX > webcamEl.videoWidth * 0.3 && centerX < webcamEl.videoWidth * 0.7) &&
+                                     (centerY > webcamEl.videoHeight * 0.3 && centerY < webcamEl.videoHeight * 0.7);
+                    const sufficientSize = box.width > webcamEl.videoWidth * 0.4;
 
                     if (isCentered && sufficientSize) {
                         overlayEl.classList.add('detected');
@@ -477,7 +466,7 @@
                     await sleep(1000);
                     takePicture('selfie');
                 }
-            }, 200);
+            }, 500);
         }
     </script>
 </body>
