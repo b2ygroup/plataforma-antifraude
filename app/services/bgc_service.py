@@ -1,45 +1,38 @@
 # app/services/bgc_service.py
-from flask import current_app
 import random
+from flask import current_app
 
-def check_background(cpf: str, nome: str):
+def check_background(nome: str, cpf: str = None) -> dict:
     """
-    Simula um Background Check (BGC) detalhado, conforme o fluxo da proposta.
+    Simula uma verificação de antecedentes (BGC) para uma pessoa física.
+    Agora pode operar apenas com o nome, se o CPF não for fornecido.
     """
     logger = current_app.logger
-    logger.info(f"BGC_SERVICE: Simulando BGC detalhado para {nome}")
+    identificador = cpf if cpf else nome
+    logger.info(f"BGC Service: Iniciando verificação de antecedentes simulada para '{identificador}'...")
 
-    # Em um cenário real, cada função faria uma chamada a uma API específica.
-    def simular_antecedentes_criminais():
-        return {"status": "APROVADO", "detalhes": "Nada consta"}
+    # Simulação de resultados
+    has_antecedentes_criminais = random.choice([True, False, False, False]) # 25% de chance de ter antecedentes
+    is_pep = "SILVA" in nome.upper() # Simula que pessoas com sobrenome 'SILVA' são PEP
+    has_mandado_prisao = random.random() < 0.05 # 5% de chance de ter mandado de prisão
 
-    def simular_listas_restritivas():
-        # Simulando que o usuário não está em nenhuma lista
-        return {"status": "APROVADO", "detalhes": {"OFAC": "OK", "ONU": "OK", "UK": "OK", "UE": "OK"}}
+    pendencias = []
+    if has_antecedentes_criminais:
+        pendencias.append("Possui antecedentes criminais em fontes públicas.")
+    if is_pep:
+        pendencias.append("Identificado como Pessoa Politicamente Exposta (PEP).")
+    if has_mandado_prisao:
+        pendencias.append("Consta um mandado de prisão em aberto.")
 
-    def simular_mandados_de_prisao():
-        return {"status": "APROVADO", "detalhes": "Nenhum mandado em aberto"}
-
-    def simular_risco_contato():
-        score = round(random.uniform(0.1, 0.5), 2)
-        return {"status": "APROVADO", "detalhes": f"Score de risco para telefone/email/IP: {score}"}
-
-    # Orquestra as sub-verificações
-    resultados_bgc = {
-        "antecedentes_criminais": simular_antecedentes_criminais(),
-        "listas_restritivas": simular_listas_restritivas(),
-        "mandados_de_prisao": simular_mandados_de_prisao(),
-        "risco_dados_contato": simular_risco_contato(),
-    }
-    
-    # Define o status geral do BGC. Se qualquer verificação falhar, o status geral será de pendência.
-    status_geral_bgc = "APROVADO"
-    for chave, resultado in resultados_bgc.items():
-        if resultado["status"] != "APROVADO":
-            status_geral_bgc = "PENDENCIA"
-            break
-
-    return {
-        "status": status_geral_bgc,
-        "detalhes": resultados_bgc
-    }
+    if not pendencias:
+        logger.info(f"BGC Service: Nenhuma pendência encontrada para '{identificador}'.")
+        return {
+            "status": "APROVADO",
+            "detalhes": "Nenhuma pendência significativa encontrada em fontes públicas e listas restritivas."
+        }
+    else:
+        logger.warning(f"BGC Service: Pendências encontradas para '{identificador}': {', '.join(pendencias)}")
+        return {
+            "status": "PENDENCIA",
+            "detalhes": pendencias
+        }

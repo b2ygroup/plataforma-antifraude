@@ -31,24 +31,9 @@
         pre { background-color: #eee; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; font-size: 13px; max-height: 300px; overflow-y: auto; }
         .nav-links { display: flex; justify-content: space-around; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color); }
         .nav-links a { color: var(--primary-color); text-decoration: none; font-weight: 500; }
-        
-        /* ✅ NOVIDADE: Estilos para a tabela do QSA */
-        .qsa-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-        .qsa-table th, .qsa-table td {
-            text-align: left;
-            padding: 8px;
-            border-bottom: 1px solid var(--border-color);
-        }
-        .qsa-table th {
-            background-color: #f8f9fa;
-            font-size: 12px;
-            text-transform: uppercase;
-            color: var(--light-text-color);
-        }
+        .qsa-table, .bgc-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .qsa-table th, .qsa-table td, .bgc-table th, .bgc-table td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border-color); }
+        .qsa-table th, .bgc-table th { background-color: #f8f9fa; font-size: 12px; text-transform: uppercase; color: var(--light-text-color); }
     </style>
 </head>
 <body>
@@ -71,7 +56,7 @@
     </div>
 
     <script>
-        const API_KEY = 'Le010584'; // Substitua pela sua chave real
+        const API_KEY = 'Le010584';
 
         const verifyButton = document.getElementById('verify-button');
         const cnpjInput = document.getElementById('cnpj-input');
@@ -125,11 +110,12 @@
         function formatStepName(key) {
             return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         }
-
-        // ✅ NOVIDADE: Função `displayResults` foi aprimorada para exibir o QSA.
+        
+        // ✅ NOVIDADE: `displayResults` agora também exibe os resultados do BGC dos sócios.
         function displayResults(data) {
             const statusClass = data.status_geral === 'APROVADO' ? 'APROVADO' : 'PENDENCIA';
             finalStatusContainer.innerHTML = `<div class="final-status ${statusClass}">${data.status_geral}</div>`;
+            verificationsDetails.innerHTML = ''; // Limpa os detalhes anteriores
 
             Object.entries(data.workflow_executado).forEach(([key, verification]) => {
                 const section = document.createElement('div');
@@ -137,34 +123,54 @@
 
                 const header = document.createElement('div');
                 header.className = 'result-header';
-                header.innerHTML = `<span>${formatStepName(key)}</span><span class="status status-${verification.status}">${verification.status}</span>`;
+                
+                let status = 'N/A';
+                let statusKey = 'N/A';
+                // O BGC dos sócios é uma lista, então não tem um status único no header
+                if (key !== 'background_check_socios') {
+                    status = verification.status || 'N/A';
+                    statusKey = status.replace('SUCESSO', 'APROVADO');
+                }
+                
+                header.innerHTML = `<span>${formatStepName(key)}</span><span class="status status-${statusKey}">${status}</span>`;
 
                 const body = document.createElement('div');
                 body.className = 'result-body';
                 
-                const qsaData = verification.dados?.quadro_de_socios_e_administradores;
-
-                // Cria uma tabela para o QSA se os dados existirem
-                if (key === 'consulta_cnpj_receita' && qsaData && qsaData.length > 0) {
-                    let qsaTable = '<table class="qsa-table"><thead><tr><th>Nome</th><th>Qualificação</th></tr></thead><tbody>';
-                    qsaData.forEach(socio => {
-                        qsaTable += `<tr><td>${socio.nome_socio || 'N/A'}</td><td>${socio.qualificacao || 'N/A'}</td></tr>`;
+                // Lógica para exibir os dados da consulta de CNPJ (com QSA)
+                if (key === 'consulta_cnpj_receita') {
+                    const qsaData = verification.dados?.quadro_de_socios_e_administradores;
+                    if (qsaData && qsaData.length > 0) {
+                        let qsaTable = '<table class="qsa-table"><thead><tr><th>Nome</th><th>Qualificação</th></tr></thead><tbody>';
+                        qsaData.forEach(socio => {
+                            qsaTable += `<tr><td>${socio.nome_socio || 'N/A'}</td><td>${socio.qualificacao || 'N/A'}</td></tr>`;
+                        });
+                        qsaTable += '</tbody></table>';
+                        body.innerHTML += `<h4>Quadro de Sócios e Administradores (QSA)</h4>${qsaTable}`;
+                        delete verification.dados.quadro_de_socios_e_administradores;
+                    }
+                    body.innerHTML += `<h4>Dados Gerais da Empresa</h4><pre>${JSON.stringify(verification.dados, null, 2)}</pre>`;
+                } 
+                // ✅ NOVIDADE: Lógica para exibir os resultados do BGC dos sócios
+                else if (key === 'background_check_socios') {
+                    let bgcTable = '<table class="bgc-table"><thead><tr><th>Sócio</th><th>Status</th><th>Detalhes</th></tr></thead><tbody>';
+                    verification.forEach(socio_bgc => {
+                        const detalhes = Array.isArray(socio_bgc.detalhes) ? socio_bgc.detalhes.join(', ') : socio_bgc.detalhes;
+                        bgcTable += `<tr>
+                            <td>${socio_bgc.nome_socio || 'N/A'}</td>
+                            <td><span class="status status-${socio_bgc.status}">${socio_bgc.status}</span></td>
+                            <td>${detalhes || 'N/A'}</td>
+                        </tr>`;
                     });
-                    qsaTable += '</tbody></table>';
-
-                    // Adiciona um header para a seção QSA
-                    body.innerHTML += `<h4>Quadro de Sócios e Administradores (QSA)</h4>${qsaTable}`;
-
-                    // Remove o QSA dos dados brutos para não exibir duplicado
-                    delete verification.dados.quadro_de_socios_e_administradores;
+                    bgcTable += '</tbody></table>';
+                    body.innerHTML = bgcTable;
+                }
+                // Lógica para outros resultados
+                else {
+                    body.innerHTML = `<pre>${JSON.stringify(verification.dados || verification.detalhes || verification.erro, null, 2)}</pre>`;
                 }
                 
-                // Exibe os outros dados em formato JSON
-                body.innerHTML += `<h4>Dados Gerais</h4><pre>${JSON.stringify(verification.dados || verification.detalhes || verification.erro, null, 2)}</pre>`;
-                
-                header.onclick = () => {
-                    body.style.display = body.style.display === 'block' ? 'none' : 'block';
-                };
+                header.onclick = () => { body.style.display = body.style.display === 'block' ? 'none' : 'block'; };
 
                 section.appendChild(header);
                 section.appendChild(body);

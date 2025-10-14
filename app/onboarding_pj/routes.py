@@ -1,9 +1,8 @@
 # app/onboarding/pj/routes.py
 import os
-import requests
 from functools import wraps
 from flask import Blueprint, request, jsonify, current_app
-from app.services import cnpj_service
+from app.services import cnpj_service, bgc_service # ✅ NOVIDADE: Importa o bgc_service
 
 bp = Blueprint('onboarding_pj', __name__)
 
@@ -29,7 +28,6 @@ def formatar_resultado_cnpj(api_data):
     except (ValueError, TypeError):
         capital_formatado = "Não informado"
 
-    # ✅ NOVIDADE: Processa a lista de QSA para extrair apenas os dados relevantes.
     qsa_bruto = api_data.get("qsa", [])
     qsa_formatado = []
     if qsa_bruto:
@@ -54,7 +52,7 @@ def formatar_resultado_cnpj(api_data):
         "endereco_completo": f"{api_data.get('logradouro', '')}, {api_data.get('numero', '')} - {api_data.get('bairro', '')}, {api_data.get('municipio', '')} - {api_data.get('uf', '')}, CEP: {api_data.get('cep', '')}",
         "telefone": f"({api_data.get('ddd_telefone_1', '')}) {api_data.get('telefone1', 'Não informado')}",
         "email": api_data.get("email", "Não informado"),
-        "quadro_de_socios_e_administradores": qsa_formatado # ✅ NOVIDADE: Usa a lista formatada.
+        "quadro_de_socios_e_administradores": qsa_formatado
     }
     
     return {
@@ -80,6 +78,29 @@ def verificar_empresa():
     
     if resultado["sucesso"]:
         dados_formatados = formatar_resultado_cnpj(resultado["dados"])
+        
+        # ✅ NOVIDADE: Executa o BGC para cada sócio encontrado
+        socios = dados_formatados["workflow_executado"]["consulta_cnpj_receita"]["dados"].get("quadro_de_socios_e_administradores", [])
+        
+        resultados_bgc_socios = []
+        if socios:
+            for socio in socios:
+                nome_socio = socio.get("nome_socio")
+                if nome_socio:
+                    resultado_bgc = bgc_service.check_background(nome=nome_socio)
+                    resultados_bgc_socios.append({
+                        "nome_socio": nome_socio,
+                        "status": resultado_bgc.get("status"),
+                        "detalhes": resultado_bgc.get("detalhes")
+                    })
+                    # Se qualquer sócio tiver pendência, o status geral da verificação PJ fica como PENDENCIA
+                    if resultado_bgc.get("status") == "PENDENCIA":
+                        dados_formatados["status_geral"] = "PENDENCIA"
+        
+        # Adiciona os resultados do BGC ao workflow final
+        if resultados_bgc_socios:
+            dados_formatados["workflow_executado"]["background_check_socios"] = resultados_bgc_socios
+
         return jsonify(dados_formatados), 200
     else:
         return jsonify({"erro": resultado["erro"], "detalhes": resultado.get("detalhes")}), resultado.get("status_code", 500)
