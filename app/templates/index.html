@@ -55,60 +55,11 @@
 </head>
 <body>
     <div class="onboarding-container">
-        <div class="step active" id="step-1">
-            <h2>Verificação de Identidade (PF)</h2>
-            <p>Vamos iniciar a validação de pessoa física. O processo é rápido e seguro.</p>
-            <button class="button" onclick="nextStep()" id="start-button">Iniciar Verificação PF</button>
-            <p id="ia-loader" style="display:none; color: var(--light-text-color); font-size: 14px;">Carregando modelos de IA...</p>
-            <div class="nav-links">
-                <a href="/pj">Verificar Empresa (PJ)</a>
-                <a href="/autenticar-usuario">Autenticar Usuário</a>
-            </div>
-        </div>
-
-        <div class="step" id="step-2">
-            <h2>Documento (Frente)</h2>
-            <p>Posicione a FRENTE do seu documento na moldura ou faça o upload.</p>
-            <div class="camera-container">
-                <div class="camera-feed">
-                    <video id="doc_frente-webcam" autoplay playsinline></video>
-                    <div class="camera-overlay">
-                        <div class="doc-overlay-shape"></div>
-                    </div>
-                </div>
-                <canvas id="doc_frente-canvas" style="display:none;"></canvas>
-            </div>
-            <button class="button" onclick="takePicture('doc_frente')" id="capture-doc-button">Capturar Frente</button>
-            <div style="margin-top: 20px;">
-                <p>Ou</p>
-                <div class="file-upload-wrapper">
-                    <input type="file" id="doc-upload-input" accept="image/*" onchange="handleDocUpload(event)">
-                    <button class="file-upload-button">Fazer Upload do Documento</button>
-                </div>
-                <p id="file-upload-name"></p>
-            </div>
-        </div>
-
+        <div class="step active" id="step-1"><h2>Verificação de Identidade (PF)</h2><p>Vamos iniciar a validação de pessoa física. O processo é rápido e seguro.</p><button class="button" onclick="nextStep()" id="start-button">Iniciar Verificação PF</button><p id="ia-loader" style="display:none; color: var(--light-text-color); font-size: 14px;">Carregando modelos de IA...</p><div class="nav-links"><a href="/pj">Verificar Empresa (PJ)</a><a href="/autenticar-usuario">Autenticar Usuário</a></div></div>
+        <div class="step" id="step-2"><h2>Documento (Frente)</h2><p>Posicione a FRENTE do seu documento na moldura ou faça o upload.</p><div class="camera-container"><div class="camera-feed"><video id="doc_frente-webcam" autoplay playsinline></video><div class="camera-overlay"><div class="doc-overlay-shape"></div></div></div><canvas id="doc_frente-canvas" style="display:none;"></canvas></div><button class="button" onclick="takePicture('doc_frente')" id="capture-doc-button">Capturar Frente</button><div style="margin-top: 20px;"><p>Ou</p><div class="file-upload-wrapper"><input type="file" id="doc-upload-input" accept="image/*" onchange="handleDocUpload(event)"><button class="file-upload-button">Fazer Upload do Documento</button></div><p id="file-upload-name"></p></div></div>
         <div class="step" id="step-3"><h2>Confirme seus Dados</h2><p id="ocr-instruction">Verifique se os dados extraídos do seu documento estão corretos.</p><div id="ocr-loader" class="loader"></div><div id="ocr-form" style="display:none;"><div class="form-group"><label for="nome">Nome Completo:</label><input type="text" id="nome"></div><div class="form-group"><label for="data_nascimento">Data de Nascimento:</label><input type="text" id="data_nascimento"></div><div class="form-group"><label for="cpf">CPF:</label><input type="text" id="cpf"></div><button class="button" onclick="nextStep()">Dados Corretos, Avançar</button></div></div>
-        
-        <div class="step" id="step-4">
-            <h2>Selfie com Documento</h2>
-            <p>Segure seu documento ao lado do rosto e capture uma selfie clara.</p>
-            <div class="camera-container">
-                <div class="camera-feed">
-                    <video id="selfie_doc-webcam" autoplay playsinline></video>
-                    <div class="camera-overlay">
-                        <div id="selfie_doc-overlay-shape" class="selfie-doc-overlay-shape"></div>
-                        <div id="selfie_doc-instruction" class="camera-instruction" style="display: none;">Centralize seu rosto e documento na moldura.</div>
-                    </div>
-                </div>
-                <canvas id="selfie_doc-canvas" style="display:none;"></canvas>
-            </div>
-            <button class="button" onclick="takePicture('selfie_doc')">Capturar Selfie com Documento</button>
-        </div>
-
+        <div class="step" id="step-4"><h2>Selfie com Documento</h2><p>Segure seu documento ao lado do rosto e capture uma selfie clara.</p><div class="camera-container"><div class="camera-feed"><video id="selfie_doc-webcam" autoplay playsinline></video><div class="camera-overlay"><div id="selfie_doc-overlay-shape" class="selfie-doc-overlay-shape"></div><div id="selfie_doc-instruction" class="camera-instruction" style="display: none;">Centralize seu rosto e documento na moldura.</div></div></div><canvas id="selfie_doc-canvas" style="display:none;"></canvas></div><button class="button" onclick="takePicture('selfie_doc')">Capturar Selfie com Documento</button></div>
         <div class="step" id="step-5"><h2>Prova de Vida (Sorriso)</h2><p>Centralize seu rosto e, quando for solicitado, SORRIA para capturar.</p><div class="camera-container"><div class="camera-feed"><video id="selfie-webcam" autoplay playsinline></video><div class="camera-overlay"><div id="selfie-overlay-shape" class="selfie-overlay-shape"></div><div id="selfie-instruction" class="camera-instruction" style="display: none;"></div></div></div><canvas id="selfie-canvas" style="display:none;"></canvas></div></div>
-        
         <div class="step" id="step-6"><h2>Analisando seus dados</h2><p>Realizando validações de segurança...</p><div class="loader"></div></div>
         <div class="step" id="step-7"><h2>Verificação Concluída</h2><div id="final-status-container"></div><p>Veja os detalhes da sua análise.</p><div id="result-container"></div><button class="button secondary" onclick="restart()">Iniciar Nova Verificação</button></div>
     </div>
@@ -183,63 +134,70 @@
             showStep(1);
         }
 
+        // ===============================================================
+        // A MELHORIA ESTÁ NESTA FUNÇÃO 'startCamera'
+        // ===============================================================
         async function startCamera(type, detectFace = false) {
             const isDoc = type.startsWith('doc');
             const webcamElement = document.getElementById(`${type}-webcam`);
             const overlayEl = document.getElementById(`${type}-overlay-shape`);
             const instructionEl = document.getElementById(`${type}-instruction`);
 
-            let constraints = { video: { facingMode: isDoc ? 'environment' : 'user' } };
+            // Define a câmera preferencial: 'environment' (traseira) para documentos, 'user' (frontal) para selfies.
+            const preferredFacingMode = isDoc ? 'environment' : 'user';
+
             try {
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                // 1. Tenta abrir a câmera PREFERENCIAL primeiro.
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: preferredFacingMode } });
                 webcamElement.srcObject = stream;
                 activeStream = stream;
-
-                if (detectFace && instructionEl) {
-                    instructionEl.style.display = 'block';
-                    faceApiInterval = setInterval(async () => {
-                        const detections = await faceapi.detectAllFaces(webcamElement, new faceapi.TinyFaceDetectorOptions());
-                        
-                        if (!detections || detections.length === 0) {
-                            instructionEl.innerText = "Nenhum rosto detectado";
-                            if(overlayEl) overlayEl.classList.remove('detected');
-                            return;
-                        }
-
-                        const face = detections[0];
-                        const box = face.box; 
-                        
-                        const centerX = box.x + box.width / 2;
-                        const centerY = box.y + box.height / 2;
-                        const isCentered = (centerX > webcamElement.videoWidth * 0.3 && centerX < webcamElement.videoWidth * 0.7) &&
-                                         (centerY > webcamElement.videoHeight * 0.3 && centerY < webcamElement.videoHeight * 0.7);
-                        const sufficientSize = box.width > webcamElement.videoWidth * 0.3;
-
-                        if (isCentered && sufficientSize) {
-                            if(overlayEl) overlayEl.classList.add('detected');
-                            instructionEl.innerText = "Rosto e documento centralizados!";
-                        } else {
-                            if(overlayEl) overlayEl.classList.remove('detected');
-                            instructionEl.innerText = "Centralize seu rosto E o documento na moldura.";
-                        }
-                    }, 200);
-                }
-                return true;
             } catch (err) {
-                console.warn(`Falha ao obter câmera '${isDoc ? 'environment' : 'user'}'. Tentando alternativa.`);
-                constraints.video = { facingMode: undefined };
+                console.warn(`Falha ao obter câmera '${preferredFacingMode}'. Tentando com a câmera padrão.`);
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    // 2. Se a primeira tentativa falhar (ex: notebook sem câmera traseira), tenta de novo sem especificar.
+                    // Isso evita o erro que causa instabilidade e permite que o notebook abra a câmera frontal.
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
                     webcamElement.srcObject = stream;
                     activeStream = stream;
-                    return true;
                 } catch (finalErr) {
-                    alert("Erro definitivo ao acessar a câmera. Verifique as permissões no seu navegador.");
+                    console.error("Erro definitivo ao acessar a câmera:", finalErr);
+                    alert("Não foi possível acessar a câmera. Verifique as permissões no seu navegador e tente novamente.");
                     restart();
-                    return false;
+                    return; // Encerra a função para não continuar com erro.
                 }
             }
-         }
+            
+            // O restante da lógica para detecção de rosto continua normalmente
+            if (detectFace && instructionEl) {
+                instructionEl.style.display = 'block';
+                faceApiInterval = setInterval(async () => {
+                    const detections = await faceapi.detectAllFaces(webcamElement, new faceapi.TinyFaceDetectorOptions());
+                    
+                    if (!detections || detections.length === 0) {
+                        instructionEl.innerText = "Nenhum rosto detectado";
+                        if(overlayEl) overlayEl.classList.remove('detected');
+                        return;
+                    }
+                    const face = detections[0];
+                    const box = face.box; 
+                    const centerX = box.x + box.width / 2;
+                    const centerY = box.y + box.height / 2;
+                    const isCentered = (centerX > webcamElement.videoWidth * 0.3 && centerX < webcamElement.videoWidth * 0.7) &&
+                                        (centerY > webcamElement.videoHeight * 0.3 && centerY < webcamElement.videoHeight * 0.7);
+                    const sufficientSize = box.width > webcamElement.videoWidth * 0.3;
+                    if (isCentered && sufficientSize) {
+                        if(overlayEl) overlayEl.classList.add('detected');
+                        instructionEl.innerText = "Rosto e documento centralizados!";
+                    } else {
+                        if(overlayEl) overlayEl.classList.remove('detected');
+                        instructionEl.innerText = "Centralize seu rosto E o documento na moldura.";
+                    }
+                }, 200);
+            }
+        }
+        // ===============================================================
+        // FIM DA MELHORIA
+        // ===============================================================
 
         function takePicture(type) {
             const webcamElement = document.getElementById(`${type}-webcam`);
