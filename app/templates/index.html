@@ -21,17 +21,15 @@
         .button:disabled { background-color: #a0a0a0; cursor: not-allowed; }
         .button.secondary { background-color: #e9ecef; color: var(--text-color); }
         .camera-container { border: 2px dashed var(--border-color); border-radius: 8px; padding: 20px; margin-top: 20px; }
-        .camera-feed { position: relative; width: 100%; max-width: 400px; margin: 0 auto; overflow: hidden; border-radius: 8px; }
+        .camera-feed { position: relative; width: 100%; max-width: 400px; margin: 0 auto; overflow: hidden; border-radius: 8px; background-color: #000; }
         video { width: 100%; display: block; }
         #selfie-webcam, #selfie_doc-webcam { transform: scaleX(-1); }
         .camera-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-        .doc-overlay-shape { position: absolute; top: 50%; left: 50%; width: 90%; height: 60%; transform: translate(-50%, -50%); border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); border: 3px dashed white; transition: all 0.3s; }
-        .selfie-doc-overlay-shape { position: absolute; top: 50%; left: 50%; width: 85%; padding-bottom: 90%; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); border: 3px dashed white; transition: all 0.3s; }
+        .doc-overlay-shape { position: absolute; top: 50%; left: 50%; width: 90%; height: 60%; transform: translate(-50%, -50%); border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); border: 3px dashed white; }
         .selfie-overlay-shape { position: absolute; top: 50%; left: 50%; width: 70%; padding-bottom: 85%; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); border: 3px dashed white; transition: all 0.5s; }
-        .selfie-overlay-shape.detected, .doc-overlay-shape.detected, .selfie-doc-overlay-shape.detected { border-color: var(--success-color); border-style: solid; box-shadow: 0 0 0 9999px rgba(40, 167, 69, 0.4); }
+        .selfie-overlay-shape.detected, .doc-overlay-shape.detected { border-color: var(--success-color); border-style: solid; box-shadow: 0 0 0 9999px rgba(40, 167, 69, 0.4); }
         .camera-instruction { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 500; z-index: 10; animation: fadeIn 0.5s; }
         .loader { border: 8px solid #f3f3f3; border-top: 8px solid var(--primary-color); border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin: 20px auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .form-group { text-align: left; margin-bottom: 15px; }
         input[type="text"] { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; box-sizing: border-box; }
         .nav-links { display: flex; justify-content: space-around; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color); }
@@ -39,7 +37,7 @@
         #result-container { text-align: left; }
         .result-section, .result-card { border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 15px; }
         .result-header, .result-card-header { background-color: #f8f9fa; padding: 12px 15px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-        .result-body, .result-card-body { padding: 15px; font-size: 14px; display: none; }
+        .result-body, .result-card-body { padding: 15px; font-size: 14px; }
         .result-card-body { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .detail-item { padding: 10px; background-color: var(--secondary-color); border-radius: 6px; }
         .detail-item strong { display: block; color: var(--light-text-color); font-size: 12px; margin-bottom: 4px; text-transform: uppercase; }
@@ -57,6 +55,38 @@
         #file-upload-name { margin-top: 10px; font-size: 14px; color: var(--light-text-color); }
         .bgc-pendencies { list-style-type: none; padding-left: 0; margin: 0; }
         .bgc-pendencies li { background-color: #fff8e1; border-left: 3px solid var(--error-color); padding: 8px 12px; margin-bottom: 5px; border-radius: 4px; font-weight: 500; }
+
+        /* ✅ NOVIDADE: CSS para os novos moldes de rosto e documento */
+        .guide-shape {
+            position: absolute;
+            border: 3px dashed white;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: bold;
+            font-size: 14px;
+            text-shadow: 0 0 5px black;
+        }
+        .face-guide {
+            width: 50%;
+            height: 65%;
+            top: 17.5%;
+            left: 5%;
+            border-radius: 50%;
+        }
+        .doc-guide {
+            width: 35%;
+            height: 45%;
+            top: 27.5%;
+            right: 5%;
+            border-radius: 10px;
+        }
+        .guide-shape.detected {
+            border-color: var(--success-color);
+            border-style: solid;
+        }
     </style>
 </head>
 <body>
@@ -64,8 +94,25 @@
         <div class="step active" id="step-1"><h2>Verificação de Identidade (PF)</h2><p>Vamos iniciar a validação de pessoa física. O processo é rápido e seguro.</p><button class="button" onclick="nextStep()" id="start-button">Iniciar Verificação PF</button><p id="ia-loader" style="display:none; color: var(--light-text-color); font-size: 14px;">Carregando modelos de IA...</p><div class="nav-links"><a href="/pj">Verificar Empresa (PJ)</a><a href="/autenticar-usuario">Autenticar Usuário</a></div></div>
         <div class="step" id="step-2"><h2>Documento (Frente)</h2><p>Posicione a FRENTE do seu documento na moldura ou faça o upload.</p><div class="camera-container"><div class="camera-feed"><video id="doc_frente-webcam" autoplay playsinline></video><div class="camera-overlay"><div class="doc-overlay-shape"></div></div></div><canvas id="doc_frente-canvas" style="display:none;"></canvas></div><button class="button" onclick="takePicture('doc_frente')" id="capture-doc-button">Capturar Frente</button><div style="margin-top: 20px;"><p>Ou</p><div class="file-upload-wrapper"><input type="file" id="doc-upload-input" accept="image/*" onchange="handleDocUpload(event)"><button class="file-upload-button">Fazer Upload do Documento</button></div><p id="file-upload-name"></p></div></div>
         <div class="step" id="step-3"><h2>Confirme seus Dados</h2><p id="ocr-instruction">Verifique se os dados extraídos do seu documento estão corretos.</p><div id="ocr-loader" class="loader"></div><div id="ocr-form" style="display:none;"><div class="form-group"><label for="nome">Nome Completo:</label><input type="text" id="nome"></div><div class="form-group"><label for="data_nascimento">Data de Nascimento:</label><input type="text" id="data_nascimento"></div><div class="form-group"><label for="cpf">CPF:</label><input type="text" id="cpf"></div><button class="button" onclick="nextStep()">Dados Corretos, Avançar</button></div></div>
-        <div class="step" id="step-4"><h2>Selfie com Documento</h2><p>Segure seu documento ao lado do rosto e capture uma selfie clara.</p><div class="camera-container"><div class="camera-feed"><video id="selfie_doc-webcam" autoplay playsinline></video><div class="camera-overlay"><div id="selfie_doc-overlay-shape" class="selfie-doc-overlay-shape"></div><div id="selfie_doc-instruction" class="camera-instruction" style="display: none;">Centralize seu rosto e documento na moldura.</div></div></div><canvas id="selfie_doc-canvas" style="display:none;"></canvas></div><button class="button" onclick="takePicture('selfie_doc')">Capturar Selfie com Documento</button></div>
-        <div class="step" id="step-5"><h2>Prova de Vida (Sorriso)</h2><p>Centralize seu rosto e, quando for solicitado, SORRIA para capturar.</p><div class="camera-container"><div class="camera-feed"><video id="selfie-webcam" autoplay playsinline></video><div class="camera-overlay"><div id="selfie-overlay-shape" class="selfie-overlay-shape"></div><div id="selfie-instruction" class="camera-instruction" style="display: none;"></div></div></div><canvas id="selfie-canvas" style="display:none;"></canvas></div></div>
+        
+        <div class="step" id="step-4">
+            <h2>Selfie com Documento</h2>
+            <p>Posicione seu rosto e seu documento nos moldes indicados.</p>
+            <div class="camera-container">
+                <div class="camera-feed">
+                    <video id="selfie_doc-webcam" autoplay playsinline></video>
+                    <div class="camera-overlay">
+                        <div class="guide-shape face-guide">ROSTO</div>
+                        <div class="guide-shape doc-guide">DOC</div>
+                        <div id="selfie_doc-instruction" class="camera-instruction">Centralize para validar</div>
+                    </div>
+                </div>
+                <canvas id="selfie_doc-canvas" style="display:none;"></canvas>
+            </div>
+            <button class="button" onclick="takePicture('selfie_doc')">Capturar Selfie com Documento</button>
+        </div>
+
+        <div class="step" id="step-5"><h2>Prova de Vida (Sorriso)</h2><p>Centralize seu rosto e, quando for solicitado, SORRIA para capturar.</p><div class="camera-container"><div class="camera-feed"><video id="selfie-webcam" autoplay playsinline></video><div class="camera-overlay"><div class="selfie-overlay-shape"></div><div id="selfie-instruction" class="camera-instruction" style="display: none;"></div></div></div><canvas id="selfie-canvas" style="display:none;"></canvas></div></div>
         <div class="step" id="step-6"><h2>Analisando seus dados</h2><p>Realizando validações de segurança...</p><div class="loader"></div></div>
         
         <div class="step" id="step-7">
@@ -149,7 +196,6 @@
 
         async function startCamera(type, detectFace = false) {
             const webcamElement = document.getElementById(`${type}-webcam`);
-            const overlayEl = document.getElementById(`${type}-overlay-shape`);
             const instructionEl = document.getElementById(`${type}-instruction`);
             let stream = null;
 
@@ -173,46 +219,28 @@
             if (detectFace && instructionEl) {
                 instructionEl.style.display = 'block';
                 faceApiInterval = setInterval(async () => {
-                    if (!webcamElement || webcamElement.readyState < 3) {
-                        return; 
-                    }
+                    if (!webcamElement || webcamElement.readyState < 3) { return; }
+
                     const detections = await faceapi.detectAllFaces(webcamElement, new faceapi.TinyFaceDetectorOptions());
                     
-                    // ✅ CORREÇÃO 1: Lógica para validar a selfie com documento (Etapa 4)
+                    // ✅ NOVIDADE: JavaScript para controlar os novos moldes
                     if (type === 'selfie_doc') {
+                        const faceGuide = document.querySelector('.face-guide');
+                        const docGuide = document.querySelector('.doc-guide');
+
                         // Exige pelo menos 2 rostos: o do usuário e o da foto 3x4 do documento
                         if (detections && detections.length > 1) {
-                            instructionEl.innerText = "Excelente! Rosto e documento detectados.";
-                            if(overlayEl) overlayEl.classList.add('detected');
+                            instructionEl.innerText = "Excelente! Posição válida.";
+                            if(faceGuide) faceGuide.classList.add('detected');
+                            if(docGuide) docGuide.classList.add('detected');
                         } else if (detections && detections.length === 1) {
-                            instructionEl.innerText = "Aproxime o documento para a câmera ler os dois rostos.";
-                            if(overlayEl) overlayEl.classList.remove('detected');
+                            instructionEl.innerText = "Aproxime o documento da câmera.";
+                            if(faceGuide) faceGuide.classList.remove('detected');
+                            if(docGuide) docGuide.classList.remove('detected');
                         } else {
-                            instructionEl.innerText = "Posicione seu rosto e a foto do documento na câmera.";
-                            if(overlayEl) overlayEl.classList.remove('detected');
-                        }
-                    } else { // Lógica para outros tipos de detecção (se houver)
-                        const isCenteredAndSized = (face) => {
-                             const box = face.box;
-                             const centerX = box.x + box.width / 2;
-                             const centerY = box.y + box.height / 2;
-                             const isCentered = (centerX > webcamElement.videoWidth * 0.3 && centerX < webcamElement.videoWidth * 0.7) &&
-                                              (centerY > webcamElement.videoHeight * 0.3 && centerY < webcamElement.videoHeight * 0.7);
-                             const sufficientSize = box.width > webcamElement.videoWidth * 0.3;
-                             return isCentered && sufficientSize;
-                        }
-
-                        if (!detections || detections.length === 0) {
-                            instructionEl.innerText = "Nenhum rosto detectado";
-                            if(overlayEl) overlayEl.classList.remove('detected');
-                        } else {
-                            if (isCenteredAndSized(detections[0])) {
-                                instructionEl.innerText = "Rosto centralizado!";
-                                if(overlayEl) overlayEl.classList.add('detected');
-                            } else {
-                                instructionEl.innerText = "Centralize seu rosto na moldura.";
-                                if(overlayEl) overlayEl.classList.remove('detected');
-                            }
+                            instructionEl.innerText = "Posicione seu rosto e o documento.";
+                            if(faceGuide) faceGuide.classList.remove('detected');
+                            if(docGuide) docGuide.classList.remove('detected');
                         }
                     }
                 }, 500);
@@ -435,7 +463,7 @@
             };
 
             faceApiInterval = setInterval(async () => {
-                // ✅ CORREÇÃO 2: Garante que o vídeo da câmera está pronto antes de analisar
+                // ✅ CORREÇÃO: Garante que o vídeo da câmera está pronto antes de analisar
                 if (!webcamEl || webcamEl.readyState < 3) {
                     instructionEl.innerText = "Aguardando câmera...";
                     return; 
