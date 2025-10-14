@@ -1,9 +1,16 @@
 {
+  "functions": {
+    "app/**/*.py": {
+      "runtime": "python3.11"
+    },
+    "run.py": {
+      "runtime": "python3.11"
+    }
+  },
   "builds": [
     {
       "src": "run.py",
-      "use": "@vercel/python",
-      "config": { "runtime": "python3.11" }
+      "use": "@vercel/python"
     }
   ],
   "routes": [
