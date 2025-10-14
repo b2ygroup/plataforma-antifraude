@@ -84,15 +84,10 @@
             try {
                 iaLoader.style.display = 'block';
                 startButton.disabled = true;
-                console.log("Iniciando carregamento dos modelos da face-api.js...");
                 await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-                console.log("Modelo tinyFaceDetector carregado.");
                 await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-                console.log("Modelo faceLandmark68Net carregado.");
                 await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
-                console.log("Modelo faceExpressionNet carregado.");
                 await faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL);
-                console.log("Modelo ageGenderNet carregado. Todos os modelos prontos.");
                 iaLoader.style.display = 'none';
                 startButton.disabled = false;
             } catch (error) {
@@ -167,7 +162,7 @@
                     }
                     alert(userMessage);
                     restart();
-                    return; 
+                    return false; // ✅ CORREÇÃO: Retorna 'false' em caso de erro.
                 }
             }
             
@@ -175,18 +170,22 @@
                 instructionEl.style.display = 'block';
                 faceApiInterval = setInterval(async () => {
                     const detections = await faceapi.detectAllFaces(webcamElement, new faceapi.TinyFaceDetectorOptions());
+                    
                     if (!detections || detections.length === 0) {
                         instructionEl.innerText = "Nenhum rosto detectado";
                         if(overlayEl) overlayEl.classList.remove('detected');
                         return;
                     }
+
                     const face = detections[0];
                     const box = face.box; 
+                    
                     const centerX = box.x + box.width / 2;
                     const centerY = box.y + box.height / 2;
                     const isCentered = (centerX > webcamElement.videoWidth * 0.3 && centerX < webcamElement.videoWidth * 0.7) &&
                                      (centerY > webcamElement.videoHeight * 0.3 && centerY < webcamElement.videoHeight * 0.7);
                     const sufficientSize = box.width > webcamElement.videoWidth * 0.3;
+
                     if (isCentered && sufficientSize) {
                         if(overlayEl) overlayEl.classList.add('detected');
                         instructionEl.innerText = "Rosto e documento centralizados!";
@@ -196,6 +195,8 @@
                     }
                 }, 200);
             }
+            
+            return true; // ✅ CORREÇÃO: Retorna 'true' em caso de sucesso.
         }
 
         function takePicture(type) {
@@ -342,24 +343,18 @@
                 resultContainer.appendChild(section);
             }
         }
-
+        
         function formatStepName(key) { return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); }
 
-        // ===============================================================
-        // FUNÇÃO DE PROVA DE VIDA (SORRISO) COM DIAGNÓSTICO
-        // ===============================================================
         async function runLivenessSequence() {
-            console.log("--- INICIANDO ETAPA DE PROVA DE VIDA (SORRISO) ---");
             const instructionEl = document.getElementById('selfie-instruction');
             const overlayEl = document.getElementById('selfie-overlay-shape');
             const webcamEl = document.getElementById('selfie-webcam');
             
-            console.log("1. Tentando iniciar a câmera para a selfie...");
             if (!await startCamera('selfie')) {
                 console.error("Falha ao iniciar a câmera na prova de vida. Abortando.");
                 return;
             }
-            console.log("2. Câmera iniciada com sucesso.");
 
             instructionEl.style.display = 'block';
             
@@ -369,29 +364,16 @@
                 smiled: false
             };
 
-            console.log("3. Iniciando loop de detecção (setInterval).");
             faceApiInterval = setInterval(async () => {
-                console.log("   -> Dentro do loop: Verificando rosto...");
-                
-                // Verifica se o elemento de vídeo está pronto
-                if (!webcamEl || webcamEl.readyState < 3) {
-                    console.warn("   -> Elemento de vídeo não está pronto para detecção.");
-                    return; // Pula esta iteração se o vídeo não estiver pronto
-                }
-
                 const detections = await faceapi.detectAllFaces(webcamEl, new faceapi.TinyFaceDetectorOptions())
                     .withFaceLandmarks().withFaceExpressions();
                 
-                // ESTE LOG É O MAIS IMPORTANTE
-                console.log("   -> Resultado da Detecção (detections):", detections);
-
                 if (!detections || detections.length === 0) {
                     instructionEl.innerText = "Nenhum rosto detectado";
                     overlayEl.classList.remove('detected');
                     return;
                 }
-                
-                console.log("   -> ROSTO DETECTADO! Prosseguindo com a lógica.");
+
                 const face = detections[0];
                 const box = face.detection.box;
                 const expressions = face.expressions;
@@ -405,7 +387,6 @@
                     const sufficientSize = box.width > webcamEl.videoWidth * 0.4;
 
                     if (isCentered && sufficientSize) {
-                        console.log("   -> Rosto centralizado. Mudando para o desafio do sorriso.");
                         overlayEl.classList.add('detected');
                         challengeState.faceCentered = true;
                         challengeState.current = 'SMILE';
@@ -417,10 +398,8 @@
 
                 if (challengeState.current === 'SMILE') {
                     instructionEl.innerText = "Agora, SORRIA!";
-                    console.log("      -> Verificando sorriso. Nível de felicidade:", expressions.happy);
                     const SMILE_THRESHOLD = 0.8;
                     if (expressions.happy > SMILE_THRESHOLD) {
-                        console.log("   -> SORRISO DETECTADO! Concluindo o desafio.");
                         challengeState.smiled = true;
                         challengeState.current = 'DONE';
                     }
@@ -428,17 +407,13 @@
 
                 if (challengeState.current === 'DONE') {
                     instructionEl.innerText = "Excelente!";
-                    console.log("4. Desafio concluído. Parando o loop e capturando a foto.");
                     clearInterval(faceApiInterval);
                     faceApiInterval = null;
                     await sleep(1000);
                     takePicture('selfie');
                 }
-            }, 500); // Aumentei o intervalo para 500ms para facilitar a leitura dos logs
+            }, 200);
         }
-        // ===============================================================
-        // FIM DA SEÇÃO DE DIAGNÓSTICO
-        // ===============================================================
     </script>
 </body>
 </html>
