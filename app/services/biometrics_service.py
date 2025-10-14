@@ -21,7 +21,6 @@ def _get_vision_client():
         logger.debug("Biometrics Service: Autenticado no Vision API via configuração padrão.")
     return client
 
-# ✅ NOVIDADE: Esta é a nova função de Face Match real com DeepFace.
 def check_facematch_real(img1_bytes: bytes, img2_bytes: bytes) -> dict:
     """
     Compara duas imagens (bytes) usando a biblioteca DeepFace e retorna um score de semelhança.
@@ -33,7 +32,6 @@ def check_facematch_real(img1_bytes: bytes, img2_bytes: bytes) -> dict:
         logger.warning("Face Match Real: Uma ou ambas as imagens são muito pequenas ou inválidas.")
         return {"status": "PENDENCIA", "motivo": "Imagem de referência ou selfie inválida.", "similaridade": 0, "threshold": 0}
 
-    # DeepFace funciona com caminhos de arquivo, então salvamos os bytes em arquivos temporários.
     with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp1, \
          tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp2:
         tmp1.write(img1_bytes)
@@ -42,23 +40,17 @@ def check_facematch_real(img1_bytes: bytes, img2_bytes: bytes) -> dict:
         img2_path = tmp2.name
 
     try:
-        # A função verify da DeepFace retorna um dicionário com o resultado.
-        # Usamos o modelo 'VGG-Face', um padrão de mercado robusto.
         result = DeepFace.verify(
             img1_path=img1_path,
             img2_path=img2_path,
             model_name='VGG-Face',
-            enforce_detection=False # Não falha se um rosto não for detectado, apenas retorna 'verified': False
+            enforce_detection=False
         )
         
-        # O resultado 'distance' é a dissimilaridade. Quanto menor, mais parecidas são as faces.
-        # Convertemos para uma 'similaridade' de 0 a 1 para facilitar o entendimento.
         distance = result.get('distance', 1.0)
         similaridade = 1 - distance
         
-        # Definimos um limiar de confiança. Scores acima disso são considerados APROVADOS.
-        # Este valor pode ser ajustado conforme a necessidade do negócio.
-        threshold = current_app.config.get('FACE_MATCH_THRESHOLD', 0.60) # 60% de similaridade
+        threshold = current_app.config.get('FACE_MATCH_THRESHOLD', 0.60)
         
         status = "APROVADO" if similaridade >= threshold else "PENDENCIA"
         
@@ -76,15 +68,18 @@ def check_facematch_real(img1_bytes: bytes, img2_bytes: bytes) -> dict:
         return {"status": "ERRO", "motivo": "Falha no serviço de biometria.", "similaridade": 0, "threshold": 0}
 
     finally:
-        # Garante que os arquivos temporários sejam sempre removidos.
         os.remove(img1_path)
         os.remove(img2_path)
 
 
+# ✅ NOVIDADE: A função de Prova de Vida Passiva foi totalmente reescrita.
 def check_liveness_passivo(selfie_bytes: bytes) -> dict:
-    # A função de liveness passivo continua a mesma.
+    """
+    Realiza uma Prova de Vida Passiva aprimorada, verificando a qualidade da imagem
+    e a presença de um único rosto claro, além do sorriso.
+    """
     logger = current_app.logger
-    logger.info("Biometrics Service (Liveness Passivo): Iniciando verificação de sorriso...")
+    logger.info("Biometrics Service (Liveness Passivo v2): Iniciando verificação aprimorada...")
 
     try:
         if selfie_bytes.startswith(b"data:image"):
@@ -92,33 +87,55 @@ def check_liveness_passivo(selfie_bytes: bytes) -> dict:
             selfie_bytes = base64.b64decode(b64data)
 
         if len(selfie_bytes) < 5000:
-            return {"status": "REPROVADO", "motivo": "Imagem muito pequena ou inválida."}
+            return {"status": "REPROVADO", "motivo": "Selfie muito pequena ou inválida."}
 
         client = _get_vision_client()
         image = vision.Image(content=selfie_bytes)
         response = client.face_detection(image=image)
 
         if response.error.message:
-            logger.error(f"Erro Vision: {response.error.message}")
+            logger.error(f"Erro Vision API em Liveness Passivo: {response.error.message}")
             return {"status": "ERRO", "motivo": response.error.message}
 
         faces = response.face_annotations
+        
+        # 1. Validação de Rosto Único
         if not faces:
-            return {"status": "REPROVADO", "motivo": "Nenhum rosto detectado na selfie."}
+            return {"status": "REPROVADO", "motivo": "Nenhum rosto detectado na selfie. Tente uma foto com boa iluminação."}
+        if len(faces) > 1:
+            return {"status": "REPROVADO", "motivo": f"Múltiplos rostos ({len(faces)}) detectados. A selfie deve conter apenas uma pessoa."}
 
         face = faces[0]
-        # ... (resto da lógica de liveness)
+        
+        # 2. Validação de Qualidade da Imagem
+        confianca_deteccao = face.detection_confidence
+        if confianca_deteccao < 0.85:
+            return {"status": "REPROVADO", "motivo": f"O rosto não está nítido o suficiente (confiança: {confianca_deteccao:.2f}). Tente outra foto."}
+        
+        if face.under_exposed_likelihood in [vision.Likelihood.LIKELY, vision.Likelihood.VERY_LIKELY]:
+            return {"status": "REPROVADO", "motivo": "A selfie está muito escura. Por favor, procure um local mais iluminado."}
+            
+        if face.blurred_likelihood in [vision.Likelihood.LIKELY, vision.Likelihood.VERY_LIKELY]:
+            return {"status": "REPROVADO", "motivo": "A selfie está borrada. Por favor, mantenha a câmera estável."}
+
+        if face.headwear_likelihood in [vision.Likelihood.LIKELY, vision.Likelihood.VERY_LIKELY]:
+            return {"status": "REPROVADO", "motivo": "Acessórios como bonés ou chapéus que cobrem o rosto não são permitidos."}
+
+        # 3. Validação de Prova de Vida (Sorriso)
         likelihood_map = {
             vision.Likelihood.VERY_UNLIKELY: 0, vision.Likelihood.UNLIKELY: 1,
             vision.Likelihood.POSSIBLE: 2, vision.Likelihood.LIKELY: 3,
             vision.Likelihood.VERY_LIKELY: 4
         }
-        joy_score = likelihood_map.get(face.joy_likelihood, 0)
-        if joy_score >= 3:
-            return {"status": "APROVADO", "detalhes": "Sorriso detectado. Prova de vida aprovada."}
+        score_sorriso = likelihood_map.get(face.joy_likelihood, 0)
+        
+        if score_sorriso >= 3: # LIKELY ou VERY_LIKELY
+            logger.info("Liveness Passivo v2: APROVADO. Rosto único, com boa qualidade e sorriso detectado.")
+            return {"status": "APROVADO", "detalhes": "Selfie de alta qualidade e sorriso detectado. Prova de vida aprovada."}
         else:
-            return {"status": "PENDENCIA", "motivo": "Nenhum sorriso detectado."}
+            logger.warning("Liveness Passivo v2: PENDENCIA. Rosto de boa qualidade, mas sorriso não detectado.")
+            return {"status": "PENDENCIA", "motivo": "Não foi possível detectar um sorriso claro. Por favor, tente novamente sorrindo para a câmera."}
 
     except Exception as e:
-        logger.error(f"Erro em check_liveness_passivo: {e}", exc_info=True)
+        logger.error(f"Erro inesperado em check_liveness_passivo: {e}", exc_info=True)
         return {"status": "ERRO", "motivo": "Falha na análise de prova de vida."}
