@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Onboarding Digital Inteligente</title>
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+        :root { --primary-color: #007bff; --secondary-color: #f4f7f6; --text-color: #333; --light-text-color: #777; --border-color: #e0e0e0; --success-color: #28a745; --error-color: #dc3545; }
+        body { font-family: 'Roboto', sans-serif; background-color: var(--secondary-color); margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .onboarding-container { width: 100%; max-width: 500px; background-color: #fff; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); overflow: hidden; text-align: center; }
+        .step { display: none; padding: 40px; animation: fadeIn 0.5s; }
+        .step.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .step h2 { color: var(--text-color); font-size: 24px; margin-top: 0; margin-bottom: 10px; }
+        .step p { color: var(--light-text-color); font-size: 16px; line-height: 1.6; margin-bottom: 30px; }
+        .button { width: 100%; padding: 15px; background-color: var(--primary-color); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.3s; margin-top: 10px; }
+        .button:hover { filter: brightness(110%); }
+        .button:disabled { background-color: #a0a0a0; cursor: not-allowed; }
+        .button.secondary { background-color: #e9ecef; color: var(--text-color); }
+        .camera-container { border: 2px dashed var(--border-color); border-radius: 8px; padding: 20px; margin-top: 20px; }
+        .camera-feed { position: relative; width: 100%; max-width: 400px; margin: 0 auto; overflow: hidden; border-radius: 8px; }
+        video { width: 100%; display: block; }
+        #selfie-webcam, #selfie_doc-webcam { transform: scaleX(-1); }
+        .camera-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        .doc-overlay-shape { position: absolute; top: 50%; left: 50%; width: 90%; height: 60%; transform: translate(-50%, -50%); border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); border: 3px dashed white; transition: all 0.3s; }
+        .selfie-doc-overlay-shape { position: absolute; top: 50%; left: 50%; width: 85%; padding-bottom: 90%; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); border: 3px dashed white; transition: all 0.3s; }
+        .selfie-overlay-shape { position: absolute; top: 50%; left: 50%; width: 70%; padding-bottom: 85%; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); border: 3px dashed white; transition: all 0.5s; }
+        .selfie-overlay-shape.detected, .doc-overlay-shape.detected, .selfie-doc-overlay-shape.detected { border-color: var(--success-color); border-style: solid; box-shadow: 0 0 0 9999px rgba(40, 167, 69, 0.4); }
+        .camera-instruction { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 500; z-index: 10; animation: fadeIn 0.5s; }
+        .loader { border: 8px solid #f3f3f3; border-top: 8px solid var(--primary-color); border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .form-group { text-align: left; margin-bottom: 15px; }
+        input[type="text"] { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; box-sizing: border-box; }
+        .nav-links { display: flex; justify-content: space-around; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color); }
+        .nav-links a { color: var(--primary-color); text-decoration: none; font-weight: 500; }
+        #result-container { text-align: left; }
+        .result-section, .result-card { border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 15px; }
+        .result-header, .result-card-header { background-color: #f8f9fa; padding: 12px 15px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .result-body { padding: 15px; font-size: 14px; display: none; }
+        .result-card-body { padding: 15px; font-size: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .detail-item { padding: 10px; background-color: var(--secondary-color); border-radius: 6px; }
+        .detail-item strong { display: block; color: var(--light-text-color); font-size: 12px; margin-bottom: 4px; text-transform: uppercase; }
+        .detail-item span { font-weight: 500; font-size: 16px; color: var(--text-color); }
+        .result-status { padding: 3px 8px; border-radius: 12px; color: white; font-size: 12px; }
+        .result-status.APROVADO, .result-status.SUCESSO { background-color: var(--success-color); }
+        .result-status.PENDENCIA, .result-status.REPROVADO, .result-status.ERRO_API, .result-status.NAO_EXECUTADO, .result-status.ERRO { background-color: var(--error-color); }
+        .final-status { padding: 15px; border-radius: 8px; color: #fff; text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 20px; }
+        .final-status.APROVADO { background-color: var(--success-color); }
+        .final-status.PENDENCIA { background-color: var(--error-color); }
+        .file-upload-wrapper { position: relative; overflow: hidden; display: inline-block; width: 100%; margin-top: 10px; }
+        .file-upload-wrapper input[type="file"] { font-size: 100px; position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; }
+        .file-upload-button { width: 100%; padding: 15px; background-color: #6c757d; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.3s; text-align: center; display: block; }
+        .file-upload-button:hover { background-color: #5a6268; }
+        #file-upload-name { margin-top: 10px; font-size: 14px; color: var(--light-text-color); }
+    </style>
+</head>
+<body>
+    <div class="onboarding-container">
+        <div class="step active" id="step-1"><h2>Verificação de Identidade (PF)</h2><p>Vamos iniciar a validação de pessoa física. O processo é rápido e seguro.</p><button class="button" onclick="nextStep()" id="start-button">Iniciar Verificação PF</button><p id="ia-loader" style="display:none; color: var(--light-text-color); font-size: 14px;">Carregando modelos de IA...</p><div class="nav-links"><a href="/pj">Verificar Empresa (PJ)</a><a href="/autenticar-usuario">Autenticar Usuário</a></div></div>
+        <div class="step" id="step-2"><h2>Documento (Frente)</h2><p>Posicione a FRENTE do seu documento na moldura ou faça o upload.</p><div class="camera-container"><div class="camera-feed"><video id="doc_frente-webcam" autoplay playsinline></video><div class="camera-overlay"><div class="doc-overlay-shape"></div></div></div><canvas id="doc_frente-canvas" style="display:none;"></canvas></div><button class="button" onclick="takePicture('doc_frente')" id="capture-doc-button">Capturar Frente</button><div style="margin-top: 20px;"><p>Ou</p><div class="file-upload-wrapper"><input type="file" id="doc-upload-input" accept="image/*" onchange="handleDocUpload(event)"><button class="file-upload-button">Fazer Upload do Documento</button></div><p id="file-upload-name"></p></div></div>
+        <div class="step" id="step-3"><h2>Confirme seus Dados</h2><p id="ocr-instruction">Verifique se os dados extraídos do seu documento estão corretos.</p><div id="ocr-loader" class="loader"></div><div id="ocr-form" style="display:none;"><div class="form-group"><label for="nome">Nome Completo:</label><input type="text" id="nome"></div><div class="form-group"><label for="data_nascimento">Data de Nascimento:</label><input type="text" id="data_nascimento"></div><div class="form-group"><label for="cpf">CPF:</label><input type="text" id="cpf"></div><button class="button" onclick="nextStep()">Dados Corretos, Avançar</button></div></div>
+        <div class="step" id="step-4"><h2>Selfie com Documento</h2><p>Segure seu documento ao lado do rosto e capture uma selfie clara.</p><div class="camera-container"><div class="camera-feed"><video id="selfie_doc-webcam" autoplay playsinline></video><div class="camera-overlay"><div id="selfie_doc-overlay-shape" class="selfie-doc-overlay-shape"></div><div id="selfie_doc-instruction" class="camera-instruction" style="display: none;">Centralize seu rosto e documento na moldura.</div></div></div><canvas id="selfie_doc-canvas" style="display:none;"></canvas></div><button class="button" onclick="takePicture('selfie_doc')">Capturar Selfie com Documento</button></div>
+        <div class="step" id="step-5"><h2>Prova de Vida (Sorriso)</h2><p>Centralize seu rosto e, quando for solicitado, SORRIA para capturar.</p><div class="camera-container"><div class="camera-feed"><video id="selfie-webcam" autoplay playsinline></video><div class="camera-overlay"><div id="selfie-overlay-shape" class="selfie-overlay-shape"></div><div id="selfie-instruction" class="camera-instruction" style="display: none;"></div></div></div><canvas id="selfie-canvas" style="display:none;"></canvas></div></div>
+        <div class="step" id="step-6"><h2>Analisando seus dados</h2><p>Realizando validações de segurança...</p><div class="loader"></div></div>
+        <div class="step" id="step-7"><h2>Verificação Concluída</h2><div id="final-status-container"></div><p>Veja os detalhes da sua análise.</p><div id="result-container"></div><button class="button secondary" onclick="restart()">Iniciar Nova Verificação</button></div>
+    </div>
+
+    <script>
+        let currentStep = 1; 
+        let capturedDocFrenteBlob = null; 
+        let capturedSelfieDocBlob = null; 
+        let capturedSelfieBlob = null; 
+        let activeStream = null; 
+        let ocrResultData = {}; 
+        let faceApiInterval = null;
+        
+        const API_KEY = 'Le010584';
+
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+        const iaLoader = document.getElementById('ia-loader');
+        const startButton = document.getElementById('start-button');
+        
+        async function loadFaceApiModels() {
+            const MODEL_URL = '/static/models';
+            try {
+                iaLoader.style.display = 'block';
+                startButton.disabled = true;
+                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+                await faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL);
+                iaLoader.style.display = 'none';
+                startButton.disabled = false;
+            } catch (error) {
+                console.error("LOG DE ERRO: Falha ao carregar modelos da IA.", error);
+                iaLoader.innerText = "Erro ao carregar IA. Verifique o console.";
+            }
+        }
+        document.addEventListener('DOMContentLoaded', loadFaceApiModels);
+
+        function showStep(stepNumber) { 
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+            document.getElementById(`step-${stepNumber}`).classList.add('active');
+            currentStep = stepNumber;
+        }
+
+        function nextStep() {
+            if (activeStream) {
+                activeStream.getTracks().forEach(track => track.stop());
+                activeStream = null;
+            }
+            if (faceApiInterval) {
+                clearInterval(faceApiInterval);
+                faceApiInterval = null;
+            }
+            const nextStepNumber = currentStep + 1;
+            showStep(nextStepNumber);
+            if (nextStepNumber === 2) { startCamera('doc_frente'); } 
+            else if (nextStepNumber === 4) { startCamera('selfie_doc', true); }
+            else if (nextStepNumber === 5) { runLivenessSequence(); }
+            else if (nextStepNumber === 6) { verificarPessoaFisica(); }
+        }
+        
+        function restart() {
+            capturedDocFrenteBlob = null; 
+            capturedSelfieDocBlob = null; 
+            capturedSelfieBlob = null; 
+            ocrResultData = {};
+            if (activeStream) { activeStream.getTracks().forEach(track => track.stop()); activeStream = null; }
+            if (faceApiInterval) { clearInterval(faceApiInterval); faceApiInterval = null; }
+            document.getElementById('result-container').innerHTML = '';
+            document.getElementById('final-status-container').innerHTML = '';
+            document.getElementById('file-upload-name').innerText = '';
+            document.getElementById('capture-doc-button').disabled = false;
+            showStep(1);
+        }
+
+        async function startCamera(type, detectFace = false) {
+            const isDoc = type.startsWith('doc');
+            const webcamElement = document.getElementById(`${type}-webcam`);
+            const overlayEl = document.getElementById(`${type}-overlay-shape`);
+            const instructionEl = document.getElementById(`${type}-instruction`);
+
+            const preferredFacingMode = isDoc ? 'environment' : 'user';
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: preferredFacingMode } });
+                webcamElement.srcObject = stream;
+                activeStream = stream;
+            } catch (err) {
+                console.warn(`Falha ao obter câmera '${preferredFacingMode}'. Tentando com a câmera padrão.`);
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+                    webcamElement.srcObject = stream;
+                    activeStream = stream;
+                } catch (finalErr) {
+                    console.error("Erro definitivo ao acessar a câmera:", finalErr);
+                    let userMessage = "Não foi possível acessar a câmera. Verifique as permissões do navegador e tente novamente.";
+                    if (finalErr.name === 'NotReadableError') {
+                        userMessage = "Não foi possível iniciar a câmera. Verifique se ela não está sendo usada por outro aplicativo (Zoom, etc.) ou se a tampa da lente está aberta. Reiniciar o computador pode resolver o problema.";
+                    } else if (finalErr.name === 'NotAllowedError') {
+                        userMessage = "Você negou a permissão de acesso à câmera. Por favor, habilite a permissão nas configurações do seu navegador para este site.";
+                    }
+                    alert(userMessage);
+                    restart();
+                    return false;
+                }
+            }
+            
+            if (detectFace && instructionEl) {
+                instructionEl.style.display = 'block';
+                faceApiInterval = setInterval(async () => {
+                    const detections = await faceapi.detectAllFaces(webcamElement, new faceapi.TinyFaceDetectorOptions());
+                    
+                    if (!detections || detections.length === 0) {
+                        instructionEl.innerText = "Nenhum rosto detectado";
+                        if(overlayEl) overlayEl.classList.remove('detected');
+                        return;
+                    }
+
+                    const face = detections[0];
+                    const box = face.box; 
+                    
+                    const centerX = box.x + box.width / 2;
+                    const centerY = box.y + box.height / 2;
+                    const isCentered = (centerX > webcamElement.videoWidth * 0.3 && centerX < webcamElement.videoWidth * 0.7) &&
+                                     (centerY > webcamElement.videoHeight * 0.3 && centerY < webcamElement.videoHeight * 0.7);
+                    const sufficientSize = box.width > webcamElement.videoWidth * 0.3;
+
+                    if (isCentered && sufficientSize) {
+                        if(overlayEl) overlayEl.classList.add('detected');
+                        instructionEl.innerText = "Rosto e documento centralizados!";
+                    } else {
+                        if(overlayEl) overlayEl.classList.remove('detected');
+                        instructionEl.innerText = "Centralize seu rosto E o documento na moldura.";
+                    }
+                }, 200);
+            }
+            
+            return true;
+        }
+
+        function takePicture(type) {
+            const webcamElement = document.getElementById(`${type}-webcam`);
+            const canvasElement = document.getElementById(`${type}-canvas`);
+            const context = canvasElement.getContext('2d');
+            canvasElement.width = webcamElement.videoWidth;
+            canvasElement.height = webcamElement.videoHeight;
+            
+            if (type.startsWith('selfie')) {
+                context.scale(-1, 1);
+                context.drawImage(webcamElement, -canvasElement.width, 0, canvasElement.width, canvasElement.height);
+            } else {
+                context.drawImage(webcamElement, 0, 0, canvasElement.width, canvasElement.height);
+            }
+
+            canvasElement.toBlob(function(blob) {
+                if (type === 'doc_frente') {
+                    capturedDocFrenteBlob = blob;
+                    showStep(3);
+                    extrairDadosDoDocumento(blob);
+                } else if (type === 'selfie_doc') {
+                    capturedSelfieDocBlob = blob;
+                    nextStep();
+                } else {
+                    capturedSelfieBlob = blob;
+                    nextStep();
+                }
+            }, 'image/jpeg', 0.9);
+        }
+        
+        async function handleDocUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                document.getElementById('file-upload-name').innerText = `Arquivo selecionado: ${file.name}`;
+                document.getElementById('capture-doc-button').disabled = true;
+                capturedDocFrenteBlob = file;
+                await sleep(500);
+                showStep(3);
+                extrairDadosDoDocumento(file);
+            } else {
+                document.getElementById('file-upload-name').innerText = '';
+                document.getElementById('capture-doc-button').disabled = false;
+            }
+        }
+
+        async function extrairDadosDoDocumento(frenteBlob) {
+            const ocrLoader = document.getElementById('ocr-loader');
+            const ocrForm = document.getElementById('ocr-form');
+            const ocrInstruction = document.getElementById('ocr-instruction');
+            ocrLoader.style.display = 'block';
+            ocrForm.style.display = 'none';
+            ocrInstruction.innerText = "Analisando a qualidade da foto e extraindo os dados...";
+            const formData = new FormData();
+            formData.append('documento_frente', frenteBlob, 'doc_frente.jpg');
+            try {
+                const response = await fetch('/onboarding/pf/extrair-ocr', { method: 'POST', body: formData, headers: {'X-API-KEY': API_KEY} });
+                ocrResultData = await response.json();
+                if (response.status !== 200 || ocrResultData.status !== 'SUCESSO') {
+                    throw new Error(ocrResultData.motivo || 'Falha desconhecida no OCR');
+                }
+                document.getElementById('nome').value = ocrResultData.dados.nome || '';
+                document.getElementById('cpf').value = ocrResultData.dados.cpf || '';
+                document.getElementById('data_nascimento').value = ocrResultData.dados.data_nascimento || '';
+                ocrLoader.style.display = 'none';
+                ocrForm.style.display = 'block';
+                ocrInstruction.innerText = 'Verifique se os dados extraídos do seu documento estão corretos.';
+            } catch (error) {
+                const tryAgain = confirm(`Falha na Leitura: ${error.message}\nA foto pode estar desfocada ou com reflexos. Deseja tentar novamente?`);
+                if (tryAgain) {
+                    showStep(2);
+                    startCamera('doc_frente');
+                } else {
+                    restart();
+                }
+            }
+        }
+        
+        async function verificarPessoaFisica() {
+            if (!capturedDocFrenteBlob || !capturedSelfieDocBlob || !capturedSelfieBlob) { 
+                alert("Ocorreu um erro na captura de todas as imagens. Por favor, reinicie."); 
+                restart(); 
+                return; 
+            }
+            const formData = new FormData();
+            formData.append('nome', document.getElementById('nome').value);
+            formData.append('cpf', document.getElementById('cpf').value);
+            if (ocrResultData.foto_3x4_base64) { formData.append('foto_documento_b64', ocrResultData.foto_3x4_base64); }
+            formData.append('documento_frente', capturedDocFrenteBlob, 'doc_frente.jpg');
+            formData.append('selfie_documento', capturedSelfieDocBlob, 'selfie_documento.jpg');
+            formData.append('selfie_liveness', capturedSelfieBlob, 'selfie_liveness.jpg');
+            
+            try {
+                const response = await fetch('/onboarding/pf/verificar', { method: 'POST', body: formData, headers: {'X-API-KEY': API_KEY} });
+                const data = await response.json();
+                if (response.ok) {
+                    displayResults(data);
+                } else {
+                    const errorMessage = data.erro || data.motivo || 'Erro desconhecido na API.';
+                    alert("Erro na verificação: " + errorMessage + ". Por favor, tente novamente.");
+                    restart();
+                }
+            } catch (error) { 
+                alert("Erro de comunicação com o servidor. Verifique sua conexão e tente novamente. Detalhes: " + error.message); 
+                restart(); 
+            } finally { 
+                showStep(7);
+            }
+        }
+
+        function displayResults(data) {
+            const resultContainer = document.getElementById('result-container');
+            const finalStatusContainer = document.getElementById('final-status-container');
+            resultContainer.innerHTML = '';
+
+            const finalStatusClass = data.status_geral === 'APROVADO' ? 'APROVADO' : 'PENDENCIA';
+            finalStatusContainer.innerHTML = `<div class="final-status ${finalStatusClass}">${data.status_geral}</div>`;
+
+            for (const [key, value] of Object.entries(data.workflow_executado)) {
+                if (key.startsWith('face_match')) {
+                    const title = key === 'face_match_liveness' ? 'Biometria Facial (Selfie vs. Documento)' : 'Biometria Facial (Selfie com Doc vs. Documento)';
+                    const similaridade = value.similaridade ? (value.similaridade * 100).toFixed(2) + '%' : 'N/A';
+                    const threshold = value.threshold ? (value.threshold * 100).toFixed(0) + '%' : 'N/A';
+                    const statusClass = (value.status || 'PENDENCIA').replace('SUCESSO', 'APROVADO');
+                    
+                    const cardHTML = `
+                        <div class="result-card">
+                            <div class="result-card-header">
+                                <span>${title}</span>
+                                <span class="result-status ${statusClass}">${value.status}</span>
+                            </div>
+                            <div class="result-card-body">
+                                <div class="detail-item">
+                                    <strong>Score de Similaridade</strong>
+                                    <span>${similaridade}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <strong>Limiar Mínimo</strong>
+                                    <span>${threshold}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    resultContainer.innerHTML += cardHTML;
+                } 
+                else {
+                    const section = document.createElement('div');
+                    section.className = 'result-section';
+                    const statusClass = (value.status || 'PENDENCIA').replace('SUCESSO', 'APROVADO');
+                    
+                    const header = document.createElement('div');
+                    header.className = 'result-header';
+                    header.innerHTML = `${formatStepName(key)} <span class="result-status ${statusClass}">${value.status}</span>`;
+                    
+                    const body = document.createElement('div');
+                    body.className = 'result-body';
+                    const details = value.detalhes || value.motivo || value;
+                    body.innerHTML = `<pre>${JSON.stringify(details, null, 2)}</pre>`;
+                    
+                    header.onclick = () => { body.style.display = body.style.display === 'block' ? 'none' : 'block'; };
+                    
+                    section.appendChild(header);
+                    section.appendChild(body);
+                    resultContainer.appendChild(section);
+                }
+            }
+        }
+        
+        function formatStepName(key) { return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); }
+
+        async function runLivenessSequence() {
+            const instructionEl = document.getElementById('selfie-instruction');
+            const overlayEl = document.getElementById('selfie-overlay-shape');
+            const webcamEl = document.getElementById('selfie-webcam');
+            
+            if (!await startCamera('selfie')) return;
+
+            instructionEl.style.display = 'block';
+            
+            let challengeState = {
+                current: 'CENTER',
+                faceCentered: false,
+                smiled: false
+            };
+
+            faceApiInterval = setInterval(async () => {
+                const detections = await faceapi.detectAllFaces(webcamEl, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks().withFaceExpressions();
+                
+                if (!detections || detections.length === 0) {
+                    instructionEl.innerText = "Nenhum rosto detectado";
+                    overlayEl.classList.remove('detected');
+                    return;
+                }
+
+                const face = detections[0];
+                const box = face.detection.box;
+                const expressions = face.expressions;
+
+                if (challengeState.current === 'CENTER') {
+                    instructionEl.innerText = "Centralize seu rosto na moldura";
+                    const centerX = box.x + box.width / 2;
+                    const centerY = box.y + box.height / 2;
+                    const isCentered = (centerX > webcamEl.videoWidth * 0.3 && centerX < webcamEl.videoWidth * 0.7) &&
+                                     (centerY > webcamEl.videoHeight * 0.3 && centerY < webcamEl.videoHeight * 0.7);
+                    const sufficientSize = box.width > webcamEl.videoWidth * 0.4;
+
+                    if (isCentered && sufficientSize) {
+                        overlayEl.classList.add('detected');
+                        challengeState.faceCentered = true;
+                        challengeState.current = 'SMILE';
+                    } else {
+                        overlayEl.classList.remove('detected');
+                        if (!sufficientSize) instructionEl.innerText = "Aproxime-se um pouco";
+                    }
+                }
+
+                if (challengeState.current === 'SMILE') {
+                    instructionEl.innerText = "Agora, SORRIA!";
+                    const SMILE_THRESHOLD = 0.8;
+                    if (expressions.happy > SMILE_THRESHOLD) {
+                        challengeState.smiled = true;
+                        challengeState.current = 'DONE';
+                    }
+                }
+
+                if (challengeState.current === 'DONE') {
+                    instructionEl.innerText = "Excelente!";
+                    clearInterval(faceApiInterval);
+                    faceApiInterval = null;
+                    await sleep(1000);
+                    takePicture('selfie');
+                }
+            }, 200);
+        }
+    </script>
+</body>
+</html>

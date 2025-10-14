@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Onboarding de Empresa (PJ)</title>
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+        :root { --primary-color: #6f42c1; --secondary-color: #f8f9fa; --border-color: #dee2e6; --success-color: #28a745; --error-color: #dc3545; --text-color: #212529; --light-text-color: #6c757d; }
+        body { font-family: 'Roboto', sans-serif; background-color: var(--secondary-color); margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { width: 100%; max-width: 700px; background-color: #fff; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); padding: 40px; }
+        h1 { text-align: center; color: var(--text-color); }
+        .form-group { margin-bottom: 20px; text-align: left; }
+        label { font-weight: 500; display: block; margin-bottom: 5px; }
+        input[type="text"] { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        .button { width: 100%; padding: 15px; background-color: var(--primary-color); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.3s; margin-top: 10px; }
+        .button:disabled { background-color: #a0a0a0; cursor: not-allowed; }
+        .loader { border: 6px solid #f3f3f3; border-top: 6px solid var(--primary-color); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; display: none; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #results-container { margin-top: 30px; text-align: left; }
+        .result-section { border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 15px; }
+        .result-header { background-color: #f8f9fa; padding: 10px 15px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .result-body { padding: 15px; font-size: 14px; display: none; }
+        .status { padding: 5px 10px; border-radius: 15px; color: white; font-size: 12px; font-weight: 500; text-transform: uppercase; }
+        .status-APROVADO { background-color: var(--success-color); }
+        .status-PENDENCIA, .status-ERRO { background-color: var(--error-color); }
+        .final-status { padding: 15px; border-radius: 8px; color: #fff; text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 20px; }
+        .final-status.APROVADO { background-color: var(--success-color); }
+        .final-status.PENDENCIA { background-color: var(--error-color); }
+        pre { background-color: #eee; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; font-size: 13px; max-height: 300px; overflow-y: auto; }
+        .nav-links { display: flex; justify-content: space-around; margin-top: 20px; } /* NOVIDADE */
+        .nav-links a { color: var(--primary-color); text-decoration: none; font-weight: 500; } /* NOVIDADE */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Onboarding de Empresa (PJ)</h1>
+        <div class="form-group">
+            <label for="cnpj-input">CNPJ</label>
+            <input type="text" id="cnpj-input" placeholder="00.000.000/0000-00" maxlength="18">
+        </div>
+        <button class="button" id="verify-button">Verificar</button>
+        <div class="loader" id="loader"></div>
+        <div id="results-container" style="display: none;">
+            <div id="final-status-container"></div>
+            <div id="verifications-details"></div>
+        </div>
+        <div class="nav-links">
+            <a href="/">Onboarding de Pessoa Física (PF)</a>
+            <a href="/autenticar-usuario">Autenticar Usuário</a>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = 'Le010584'; // <-- SUBSTITUA AQUI PELA SUA CHAVE REAL DA VERSEL
+
+        const verifyButton = document.getElementById('verify-button');
+        const cnpjInput = document.getElementById('cnpj-input');
+        const loader = document.getElementById('loader');
+        const resultsContainer = document.getElementById('results-container');
+        const finalStatusContainer = document.getElementById('final-status-container');
+        const verificationsDetails = document.getElementById('verifications-details');
+
+        cnpjInput.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/\D/g, '');
+            value = value.replace(/^(\d{2})(\d)/, '$1.$2');
+            value = value.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
+            value = value.replace(/\.(\d{3})(\d)/, '.$1/$2');
+            value = value.replace(/(\d{4})(\d)/, '$1-$2');
+            e.target.value = value;
+        });
+
+        verifyButton.addEventListener('click', async () => {
+            const cnpj = cnpjInput.value;
+            if (!cnpj || cnpj.length < 18) {
+                alert('Por favor, insira um CNPJ válido.');
+                return;
+            }
+
+            verifyButton.disabled = true;
+            loader.style.display = 'block';
+            resultsContainer.style.display = 'none';
+            finalStatusContainer.innerHTML = '';
+            verificationsDetails.innerHTML = '';
+
+            try {
+                const response = await fetch('/onboarding/pj/verificar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-KEY': API_KEY
+                    },
+                    body: JSON.stringify({ cnpj: cnpj })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.erro || 'Ocorreu um erro na verificação.');
+                }
+                
+                displayResults(data);
+
+            } catch (error) {
+                console.error("Erro ao verificar empresa:", error);
+                finalStatusContainer.innerHTML = `<div class="final-status PENDENCIA">Erro: ${error.message}</div>`;
+            } finally {
+                verifyButton.disabled = false;
+                loader.style.display = 'none';
+                resultsContainer.style.display = 'block';
+            }
+        });
+
+        function formatStepName(key) {
+            return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        function displayResults(data) {
+            const statusClass = data.status_geral === 'APROVADO' ? 'APROVADO' : 'PENDENCIA';
+            finalStatusContainer.innerHTML = `<div class="final-status ${statusClass}">${data.status_geral}</div>`;
+
+            Object.entries(data.workflow_executado).forEach(([key, verification]) => {
+                const section = document.createElement('div');
+                section.className = 'result-section';
+
+                const header = document.createElement('div');
+                header.className = 'result-header';
+                
+                header.innerHTML = `
+                    <span>${formatStepName(key)}</span>
+                    <span class="status status-${verification.status}">${verification.status}</span>
+                `;
+
+                const body = document.createElement('div');
+                body.className = 'result-body';
+                body.innerHTML = `<pre>${JSON.stringify(verification.dados || verification.detalhes || verification.erro, null, 2)}</pre>`;
+                
+                header.onclick = () => {
+                    body.style.display = body.style.display === 'block' ? 'none' : 'block';
+                };
+
+                section.appendChild(header);
+                section.appendChild(body);
+                verificationsDetails.appendChild(section);
+            });
+        }
+    </script>
+</body>
+</html>

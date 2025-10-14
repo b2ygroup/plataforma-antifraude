@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autenticação Digital</title>
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+        :root { --primary-color: #17a2b8; --secondary-color: #f8f9fa; --border-color: #dee2e6; --success-color: #28a745; --error-color: #dc3545; --text-color: #212529; }
+        body { font-family: 'Roboto', sans-serif; background-color: var(--secondary-color); margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { width: 100%; max-width: 500px; background-color: #fff; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); padding: 40px; text-align: center; }
+        .step { display: none; animation: fadeIn 0.5s; }
+        .step.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        h1, h2 { color: var(--text-color); }
+        p { color: #6c757d; }
+        .form-group { margin-bottom: 20px; text-align: left; }
+        label { font-weight: 500; display: block; margin-bottom: 5px; }
+        input[type="text"] { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        .button { width: 100%; padding: 15px; background-color: var(--primary-color); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.3s; margin-top: 10px; }
+        .button:disabled { background-color: #a0a0a0; cursor: not-allowed; }
+        .camera-container { border: 2px dashed var(--border-color); border-radius: 8px; padding: 20px; margin-top: 20px; }
+        .camera-feed { position: relative; width: 100%; max-width: 400px; margin: 0 auto; overflow: hidden; border-radius: 8px; }
+        video { width: 100%; display: block; transform: scaleX(-1); }
+        .camera-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        .selfie-overlay-shape { position: absolute; top: 50%; left: 50%; width: 70%; padding-bottom: 85%; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); border: 3px dashed white; transition: all 0.5s; }
+        .selfie-overlay-shape.detected { border-color: var(--success-color); border-style: solid; }
+        .camera-instruction { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 500; z-index: 10; }
+        .loader { border: 6px solid #f3f3f3; border-top: 6px solid var(--primary-color); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        .final-status { padding: 20px; border-radius: 8px; color: #fff; text-align: center; font-size: 1.8em; font-weight: bold; margin: 20px 0; }
+        .final-status.APROVADO { background-color: var(--success-color); }
+        .final-status.PENDENCIA, .final-status.FALHA { background-color: var(--error-color); }
+        .nav-link { text-align: center; margin-top: 30px; }
+        .nav-link a { color: var(--primary-color); text-decoration: none; font-weight: 500; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="step active" id="step-1">
+            <h1>Autenticação de Usuário</h1>
+            <p>Para sua segurança, por favor, confirme sua identidade.</p>
+            <div class="form-group">
+                <label for="cpf-input">CPF</label>
+                <input type="text" id="cpf-input" placeholder="Digite seu CPF" maxlength="14">
+            </div>
+            <button class="button" id="start-auth-button">Iniciar Autenticação</button>
+            <p id="ia-loader" style="display:none; color: var(--light-text-color); font-size: 14px;">Carregando modelos de IA...</p>
+        </div>
+
+        <div class="step" id="step-2">
+            <h2>Prova de Vida</h2>
+            <p>Centralize seu rosto e, quando for solicitado, SORRIA.</p>
+            <div class="camera-container">
+                <div class="camera-feed">
+                    <video id="selfie-webcam" autoplay playsinline></video>
+                    <div class="camera-overlay">
+                        <div id="selfie-overlay-shape" class="selfie-overlay-shape"></div>
+                        <div id="selfie-instruction" class="camera-instruction"></div>
+                    </div>
+                </div>
+                <canvas id="selfie-canvas" style="display:none;"></canvas>
+            </div>
+        </div>
+        
+        <div class="step" id="step-3">
+            <h2>Analisando...</h2>
+            <p>Estamos comparando sua selfie com nossos registros.</p>
+            <div class="loader" id="loader"></div>
+        </div>
+
+        <div class="step" id="step-4">
+            <h2>Resultado da Autenticação</h2>
+            <div id="final-status-container"></div>
+            <button class="button" onclick="restart()">Tentar Novamente</button>
+        </div>
+
+        <div class="nav-link">
+            <a href="/">Voltar para Onboarding</a>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = 'Le010584'; // <-- SUBSTITUA AQUI PELA SUA CHAVE REAL DA VERSEL
+
+        const iaLoader = document.getElementById('ia-loader');
+        const startAuthButton = document.getElementById('start-auth-button');
+        const cpfInput = document.getElementById('cpf-input');
+        const finalStatusContainer = document.getElementById('final-status-container');
+
+        let activeStream = null;
+        let faceApiInterval = null;
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+        cpfInput.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/\D/g, '');
+            value = value.replace(/(\d{3})(\d)/, '$1.$2');
+            value = value.replace(/(\d{3})(\d)/, '$1.$2');
+            value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+            e.target.value = value;
+        });
+
+        async function loadFaceApiModels() {
+            const MODEL_URL = '/static/models';
+            try {
+                iaLoader.style.display = 'block';
+                startAuthButton.disabled = true;
+                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+                iaLoader.style.display = 'none';
+                startAuthButton.disabled = false;
+            } catch (error) {
+                console.error("Falha ao carregar modelos da IA.", error);
+                iaLoader.innerText = "Erro ao carregar IA.";
+            }
+        }
+        document.addEventListener('DOMContentLoaded', loadFaceApiModels);
+
+        function showStep(stepNumber) {
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+            document.getElementById(`step-${stepNumber}`).classList.add('active');
+        }
+
+        startAuthButton.addEventListener('click', () => {
+            if (!cpfInput.value || cpfInput.value.length < 14) {
+                alert('Por favor, insira um CPF válido.');
+                return;
+            }
+            showStep(2);
+            runLivenessSequence();
+        });
+        
+        function restart() {
+            if (activeStream) { activeStream.getTracks().forEach(track => track.stop()); activeStream = null; }
+            if (faceApiInterval) { clearInterval(faceApiInterval); faceApiInterval = null; }
+            cpfInput.value = '';
+            showStep(1);
+        }
+
+        async function startCamera() {
+            const webcamElement = document.getElementById('selfie-webcam');
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                webcamElement.srcObject = stream;
+                activeStream = stream;
+                return true;
+            } catch (err) {
+                alert("Não foi possível acessar a câmera. Verifique as permissões.");
+                restart();
+                return false;
+            }
+        }
+
+        function takePictureAndAuthenticate() {
+            const webcamElement = document.getElementById('selfie-webcam');
+            const canvasElement = document.getElementById('selfie-canvas');
+            const context = canvasElement.getContext('2d');
+            canvasElement.width = webcamElement.videoWidth;
+            canvasElement.height = webcamElement.videoHeight;
+            context.scale(-1, 1);
+            context.drawImage(webcamElement, -canvasElement.width, 0, canvasElement.width, canvasElement.height);
+
+            canvasElement.toBlob(async function(blob) {
+                showStep(3);
+                await authenticateOnBackend(blob);
+            }, 'image/jpeg', 0.9);
+        }
+
+        async function authenticateOnBackend(selfieBlob) {
+            const formData = new FormData();
+            formData.append('cpf', cpfInput.value.replace(/\D/g, ''));
+            formData.append('selfie_atual', selfieBlob, 'selfie_atual.jpg');
+
+            try {
+                const response = await fetch('/autenticacao/autenticar', {
+                    method: 'POST',
+                    headers: { 'X-API-KEY': API_KEY },
+                    body: formData
+                });
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    const errorDetails = data.workflow_executado?.busca_usuario?.detalhes;
+                    throw new Error(errorDetails || data.erro || 'Falha na autenticação.');
+                }
+
+                const statusClass = data.status_geral === 'APROVADO' ? 'APROVADO' : 'PENDENCIA';
+                finalStatusContainer.innerHTML = `<div class="final-status ${statusClass}">${data.status_geral}</div>`;
+                
+            } catch (error) {
+                console.error("Erro no backend:", error);
+                finalStatusContainer.innerHTML = `<div class="final-status FALHA">Erro: ${error.message}</div>`;
+            } finally {
+                showStep(4);
+            }
+        }
+
+        async function runLivenessSequence() {
+            const instructionEl = document.getElementById('selfie-instruction');
+            const overlayEl = document.getElementById('selfie-overlay-shape');
+            const webcamEl = document.getElementById('selfie-webcam');
+            
+            if (!await startCamera()) return;
+
+            let challengeState = { current: 'CENTER' };
+
+            faceApiInterval = setInterval(async () => {
+                const detections = await faceapi.detectAllFaces(webcamEl, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks().withFaceExpressions();
+                
+                if (!detections || detections.length === 0) {
+                    instructionEl.innerText = "Nenhum rosto detectado";
+                    overlayEl.classList.remove('detected');
+                    return;
+                }
+
+                const face = detections[0];
+                const box = face.detection.box;
+                const expressions = face.expressions;
+
+                if (challengeState.current === 'CENTER') {
+                    instructionEl.innerText = "Centralize seu rosto";
+                    const isCentered = (box.x > webcamEl.videoWidth * 0.2 && box.right < webcamEl.videoWidth * 0.8);
+                    if (isCentered) {
+                        overlayEl.classList.add('detected');
+                        challengeState.current = 'SMILE';
+                    } else {
+                        overlayEl.classList.remove('detected');
+                    }
+                }
+
+                if (challengeState.current === 'SMILE') {
+                    instructionEl.innerText = "Agora, SORRIA!";
+                    if (expressions.happy > 0.8) {
+                        instructionEl.innerText = "Excelente!";
+                        clearInterval(faceApiInterval);
+                        faceApiInterval = null;
+                        await sleep(500);
+                        takePictureAndAuthenticate();
+                    }
+                }
+            }, 200);
+        }
+    </script>
+</body>
+</html>
