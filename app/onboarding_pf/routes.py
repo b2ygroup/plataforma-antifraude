@@ -60,7 +60,7 @@ def get_vision_client():
     return client
 
 def analisar_documento_com_google_vision(doc_frente_bytes):
-    """Usa a Google Vision API para extrair texto (OCR) de uma imagem de documento."""
+    """Usa a Google Vision API para extrair texto (OCR) de uma imagem de documento com regex aprimorado."""
     logger = current_app.logger
     logger.info("OCR: Iniciando análise de documento...")
     try:
@@ -79,41 +79,32 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         
         full_text_flat = full_text_com_newlines.replace('\n', ' ')
         dados_extraidos = {}
-        campos_faltando = []
-
-        cpf_padroes = [r'(\d{3}\.\d{3}\.\d{3}-\d{2})', r'(\d{3} \d{3} \d{3} \d{2})']
-        for padrao in cpf_padroes:
-            if match := re.search(padrao, full_text_flat):
-                dados_extraidos['cpf'] = match.group(1)
-                break
         
-        nasc_padroes = [
-            r'(?:DATA DE NASC|NASCIMENTO)\s*[:\s]*(\d{2}/\d{2}/\d{4})',
-            r'\b(\d{2}/\d{2}/(?:19|20)\d{2})\b'
-        ]
-        for padrao in nasc_padroes:
-            if match := re.search(padrao, full_text_flat, re.IGNORECASE):
-                dados_extraidos['data_nascimento'] = match.group(1)
-                break
+        # Extração de CPF
+        cpf_padrao = r'(\d{3}\.\d{3}\.\d{3}-\d{2})'
+        if match := re.search(cpf_padrao, full_text_flat):
+            dados_extraidos['cpf'] = match.group(1)
 
-        nome_padroes = [
-            r'(?:NOME|NOME COMPLETO)\n*([A-Z\s]+?)(?=\s\s|NASCIMENTO|FILIAÇÃO|CPF|DOC|REGISTRO|$)',
-            r'NOME\s*([A-Z\s]+?)(?=\s\s|NASCIMENTO|FILIAÇÃO|CPF|DOC|REGISTRO|$)',
-        ]
-        if 'nome' not in dados_extraidos:
-             for padrao in nome_padroes:
-                if match := re.search(padrao, full_text_com_newlines, re.IGNORECASE):
-                    nome = match.group(1).replace('\n', ' ').strip()
-                    nome = re.sub(r'\bHABILITA\b', '', nome, flags=re.IGNORECASE).strip()
-                    dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
-                    break
+        # Regex aprimorado para data de nascimento (funciona na CNH)
+        nasc_padrao = r'(?:NASCIMENTO|DE NASCIMENTO)\n(\d{2}/\d{2}/\d{4})'
+        if match := re.search(nasc_padrao, full_text_com_newlines, re.IGNORECASE):
+            dados_extraidos['data_nascimento'] = match.group(1)
 
+        # Regex aprimorado para o nome (funciona na CNH)
+        nome_padrao = r'(?:NOME E SOBRENOM|NOME)\n([A-Z\s]+?)(?=\n)'
+        if match := re.search(nome_padrao, full_text_com_newlines, re.IGNORECASE):
+            nome = match.group(1).replace('\n', ' ').strip()
+            dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
+
+        # Verificação final dos campos extraídos
+        campos_faltando = []
         if 'nome' not in dados_extraidos: campos_faltando.append('nome')
         if 'cpf' not in dados_extraidos: campos_faltando.append('cpf')
         if 'data_nascimento' not in dados_extraidos: campos_faltando.append('data_nascimento')
 
         if campos_faltando:
-            motivo = f"Não foi possível extrair os seguintes campos: {', '.join(campos_faltando)}."
+            motivo = f"Não foi possível extrair os seguintes campos do documento: {', '.join(campos_faltando)}. Por favor, tente uma foto com melhor iluminação e sem reflexos."
+            logger.warning(f"OCR: {motivo}")
             return {"status": "REPROVADO_OCR", "motivo": motivo}
 
         logger.info(f"OCR: Dados extraídos com sucesso: {dados_extraidos}")
@@ -132,7 +123,9 @@ def extrair_ocr():
     doc_bytes = request.files['documento_frente'].read()
     if not doc_bytes:
         return jsonify({"status": "REPROVADO_OCR", "motivo": "O arquivo do documento está vazio."}), 400
+    
     resultado_ocr = analisar_documento_com_google_vision(doc_bytes)
+    
     if resultado_ocr.get('status') == 'SUCESSO':
         return jsonify(resultado_ocr)
     else:
@@ -217,4 +210,3 @@ def verificar_pessoa_fisica():
         db.session.rollback()
 
     return jsonify(resposta_final), 200
-
