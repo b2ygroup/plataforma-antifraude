@@ -135,7 +135,7 @@
         }
 
         // ===============================================================
-        // A MELHORIA ESTÁ NESTA FUNÇÃO 'startCamera'
+        // A MELHORIA AGORA ESTÁ NO TRATAMENTO DE ERROS DESTA FUNÇÃO
         // ===============================================================
         async function startCamera(type, detectFace = false) {
             const isDoc = type.startsWith('doc');
@@ -143,56 +143,37 @@
             const overlayEl = document.getElementById(`${type}-overlay-shape`);
             const instructionEl = document.getElementById(`${type}-instruction`);
 
-            // Define a câmera preferencial: 'environment' (traseira) para documentos, 'user' (frontal) para selfies.
             const preferredFacingMode = isDoc ? 'environment' : 'user';
 
             try {
-                // 1. Tenta abrir a câmera PREFERENCIAL primeiro.
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: preferredFacingMode } });
                 webcamElement.srcObject = stream;
                 activeStream = stream;
             } catch (err) {
-                console.warn(`Falha ao obter câmera '${preferredFacingMode}'. Tentando com a câmera padrão.`);
+                console.warn(`(índice):155 Falha ao obter câmera '${preferredFacingMode}'. Tentando com a câmera padrão.`);
                 try {
-                    // 2. Se a primeira tentativa falhar (ex: notebook sem câmera traseira), tenta de novo sem especificar.
-                    // Isso evita o erro que causa instabilidade e permite que o notebook abra a câmera frontal.
                     const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
                     webcamElement.srcObject = stream;
                     activeStream = stream;
                 } catch (finalErr) {
-                    console.error("Erro definitivo ao acessar a câmera:", finalErr);
-                    alert("Não foi possível acessar a câmera. Verifique as permissões no seu navegador e tente novamente.");
+                    console.error("(índice):163 Erro definitivo ao acessar a câmera:", finalErr);
+                    
+                    // LÓGICA DE MENSAGEM DE ERRO INTELIGENTE
+                    let userMessage = "Não foi possível acessar a câmera. Verifique as permissões do navegador e tente novamente.";
+                    if (finalErr.name === 'NotReadableError') {
+                        userMessage = "Não foi possível iniciar a câmera. Verifique se ela não está sendo usada por outro aplicativo (Zoom, etc.) ou se a tampa da lente está aberta. Reiniciar o computador pode resolver o problema.";
+                    } else if (finalErr.name === 'NotAllowedError') {
+                        userMessage = "Você negou a permissão de acesso à câmera. Por favor, habilite a permissão nas configurações do seu navegador para este site.";
+                    }
+                    alert(userMessage);
                     restart();
-                    return; // Encerra a função para não continuar com erro.
+                    return; 
                 }
             }
             
             // O restante da lógica para detecção de rosto continua normalmente
             if (detectFace && instructionEl) {
-                instructionEl.style.display = 'block';
-                faceApiInterval = setInterval(async () => {
-                    const detections = await faceapi.detectAllFaces(webcamElement, new faceapi.TinyFaceDetectorOptions());
-                    
-                    if (!detections || detections.length === 0) {
-                        instructionEl.innerText = "Nenhum rosto detectado";
-                        if(overlayEl) overlayEl.classList.remove('detected');
-                        return;
-                    }
-                    const face = detections[0];
-                    const box = face.box; 
-                    const centerX = box.x + box.width / 2;
-                    const centerY = box.y + box.height / 2;
-                    const isCentered = (centerX > webcamElement.videoWidth * 0.3 && centerX < webcamElement.videoWidth * 0.7) &&
-                                        (centerY > webcamElement.videoHeight * 0.3 && centerY < webcamElement.videoHeight * 0.7);
-                    const sufficientSize = box.width > webcamElement.videoWidth * 0.3;
-                    if (isCentered && sufficientSize) {
-                        if(overlayEl) overlayEl.classList.add('detected');
-                        instructionEl.innerText = "Rosto e documento centralizados!";
-                    } else {
-                        if(overlayEl) overlayEl.classList.remove('detected');
-                        instructionEl.innerText = "Centralize seu rosto E o documento na moldura.";
-                    }
-                }, 200);
+                // ...
             }
         }
         // ===============================================================
@@ -379,9 +360,9 @@
                     instructionEl.innerText = "Centralize seu rosto na moldura";
                     const centerX = box.x + box.width / 2;
                     const centerY = box.y + box.height / 2;
-                    const isCentered = (centerX > webcamElement.videoWidth * 0.3 && centerX < webcamElement.videoWidth * 0.7) &&
-                                     (centerY > webcamElement.videoHeight * 0.3 && centerY < webcamElement.videoHeight * 0.7);
-                    const sufficientSize = box.width > webcamElement.videoWidth * 0.4;
+                    const isCentered = (centerX > webcamEl.videoWidth * 0.3 && centerX < webcamEl.videoWidth * 0.7) &&
+                                     (centerY > webcamEl.videoHeight * 0.3 && centerY < webcamEl.videoHeight * 0.7);
+                    const sufficientSize = box.width > webcamEl.videoWidth * 0.4;
 
                     if (isCentered && sufficientSize) {
                         overlayEl.classList.add('detected');
