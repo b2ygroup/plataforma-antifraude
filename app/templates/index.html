@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Onboarding Digital Inteligente</title>
     <link rel="icon" href="data:;base64,iVBORw0KGgo=">
-    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
         :root { --primary-color: #007bff; --secondary-color: #f4f7f6; --text-color: #333; --light-text-color: #777; --border-color: #e0e0e0; --success-color: #28a745; --error-color: #dc3545; }
@@ -37,12 +37,16 @@
         .nav-links { display: flex; justify-content: space-around; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color); }
         .nav-links a { color: var(--primary-color); text-decoration: none; font-weight: 500; }
         #result-container { text-align: left; }
-        .result-section { border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 15px; }
-        .result-header { background-color: #f8f9fa; padding: 10px 15px; font-weight: bold; cursor: pointer; }
+        .result-section, .result-card { border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 15px; }
+        .result-header, .result-card-header { background-color: #f8f9fa; padding: 12px 15px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
         .result-body { padding: 15px; font-size: 14px; display: none; }
-        .result-status { float: right; padding: 3px 8px; border-radius: 12px; color: white; font-size: 12px; }
+        .result-card-body { padding: 15px; font-size: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .detail-item { padding: 10px; background-color: var(--secondary-color); border-radius: 6px; }
+        .detail-item strong { display: block; color: var(--light-text-color); font-size: 12px; margin-bottom: 4px; text-transform: uppercase; }
+        .detail-item span { font-weight: 500; font-size: 16px; color: var(--text-color); }
+        .result-status { padding: 3px 8px; border-radius: 12px; color: white; font-size: 12px; }
         .result-status.APROVADO, .result-status.SUCESSO { background-color: var(--success-color); }
-        .result-status.PENDENCIA, .result-status.REPROVADO, .result-status.ERRO_API, .result-status.NAO_EXECUTADO { background-color: var(--error-color); }
+        .result-status.PENDENCIA, .result-status.REPROVADO, .result-status.ERRO_API, .result-status.NAO_EXECUTADO, .result-status.ERRO { background-color: var(--error-color); }
         .final-status { padding: 15px; border-radius: 8px; color: #fff; text-align: center; font-size: 1.5em; font-weight: bold; margin-bottom: 20px; }
         .final-status.APROVADO { background-color: var(--success-color); }
         .final-status.PENDENCIA { background-color: var(--error-color); }
@@ -162,7 +166,7 @@
                     }
                     alert(userMessage);
                     restart();
-                    return false; // ✅ CORREÇÃO: Retorna 'false' em caso de erro.
+                    return false;
                 }
             }
             
@@ -196,7 +200,7 @@
                 }, 200);
             }
             
-            return true; // ✅ CORREÇÃO: Retorna 'true' em caso de sucesso.
+            return true;
         }
 
         function takePicture(type) {
@@ -221,7 +225,7 @@
                 } else if (type === 'selfie_doc') {
                     capturedSelfieDocBlob = blob;
                     nextStep();
-                } else { // 'selfie'
+                } else {
                     capturedSelfieBlob = blob;
                     nextStep();
                 }
@@ -307,40 +311,61 @@
             }
         }
 
-        function displayResults(data) { 
+        function displayResults(data) {
             const resultContainer = document.getElementById('result-container');
             const finalStatusContainer = document.getElementById('final-status-container');
             resultContainer.innerHTML = '';
+
             const finalStatusClass = data.status_geral === 'APROVADO' ? 'APROVADO' : 'PENDENCIA';
             finalStatusContainer.innerHTML = `<div class="final-status ${finalStatusClass}">${data.status_geral}</div>`;
+
             for (const [key, value] of Object.entries(data.workflow_executado)) {
-                const section = document.createElement('div');
-                section.className = 'result-section';
-                const statusClass = (value.status || '').replace('SUCESSO', 'APROVADO');
-                const header = document.createElement('div');
-                header.className = 'result-header';
-                header.innerHTML = `${formatStepName(key)} <span class="result-status ${statusClass}">${value.status}</span>`;
-                const body = document.createElement('div');
-                body.className = 'result-body';
-                body.innerHTML = `<pre>${JSON.stringify(value, null, 2)}</pre>`;
-                header.onclick = () => { body.style.display = body.style.display === 'block' ? 'none' : 'block'; };
-                section.appendChild(header);
-                section.appendChild(body);
-                resultContainer.appendChild(section);
-            }
-            if(data.risk_score) {
-                const section = document.createElement('div');
-                section.className = 'result-section';
-                const header = document.createElement('div');
-                header.className = 'result-header';
-                header.innerHTML = `Análise de Risco <span class="status status-${data.risk_score.rating === 'BAIXO RISCO' ? 'APROVADO' : 'PENDENCIA'}">${data.risk_score.rating}</span>`;
-                const body = document.createElement('div');
-                body.className = 'result-body';
-                body.innerHTML = `<pre>${JSON.stringify(data.risk_score, null, 2)}</pre>`;
-                header.onclick = () => { body.style.display = body.style.display === 'block' ? 'none' : 'block'; };
-                section.appendChild(header);
-                section.appendChild(body);
-                resultContainer.appendChild(section);
+                if (key.startsWith('face_match')) {
+                    const title = key === 'face_match_liveness' ? 'Biometria Facial (Selfie vs. Documento)' : 'Biometria Facial (Selfie com Doc vs. Documento)';
+                    const similaridade = value.similaridade ? (value.similaridade * 100).toFixed(2) + '%' : 'N/A';
+                    const threshold = value.threshold ? (value.threshold * 100).toFixed(0) + '%' : 'N/A';
+                    const statusClass = (value.status || 'PENDENCIA').replace('SUCESSO', 'APROVADO');
+                    
+                    const cardHTML = `
+                        <div class="result-card">
+                            <div class="result-card-header">
+                                <span>${title}</span>
+                                <span class="result-status ${statusClass}">${value.status}</span>
+                            </div>
+                            <div class="result-card-body">
+                                <div class="detail-item">
+                                    <strong>Score de Similaridade</strong>
+                                    <span>${similaridade}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <strong>Limiar Mínimo</strong>
+                                    <span>${threshold}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    resultContainer.innerHTML += cardHTML;
+                } 
+                else {
+                    const section = document.createElement('div');
+                    section.className = 'result-section';
+                    const statusClass = (value.status || 'PENDENCIA').replace('SUCESSO', 'APROVADO');
+                    
+                    const header = document.createElement('div');
+                    header.className = 'result-header';
+                    header.innerHTML = `${formatStepName(key)} <span class="result-status ${statusClass}">${value.status}</span>`;
+                    
+                    const body = document.createElement('div');
+                    body.className = 'result-body';
+                    const details = value.detalhes || value.motivo || value;
+                    body.innerHTML = `<pre>${JSON.stringify(details, null, 2)}</pre>`;
+                    
+                    header.onclick = () => { body.style.display = body.style.display === 'block' ? 'none' : 'block'; };
+                    
+                    section.appendChild(header);
+                    section.appendChild(body);
+                    resultContainer.appendChild(section);
+                }
             }
         }
         
@@ -351,10 +376,7 @@
             const overlayEl = document.getElementById('selfie-overlay-shape');
             const webcamEl = document.getElementById('selfie-webcam');
             
-            if (!await startCamera('selfie')) {
-                console.error("Falha ao iniciar a câmera na prova de vida. Abortando.");
-                return;
-            }
+            if (!await startCamera('selfie')) return;
 
             instructionEl.style.display = 'block';
             

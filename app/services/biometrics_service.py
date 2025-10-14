@@ -1,12 +1,12 @@
 # app/services/biometrics_service.py
-import random
 import base64
+import json
+import tempfile
+import os
 from flask import current_app
 from google.cloud import vision
 from google.oauth2 import service_account
-import json
-import io
-import os # Importe o OS para salvar arquivos de debug
+from deepface import DeepFace
 
 def _get_vision_client():
     logger = current_app.logger
@@ -15,102 +15,110 @@ def _get_vision_client():
         creds_dict = json.loads(google_creds_json_str)
         credentials = service_account.Credentials.from_service_account_info(creds_dict)
         client = vision.ImageAnnotatorClient(credentials=credentials)
-        logger.debug("Biometrics Service: Autenticado via variável de ambiente.")
+        logger.debug("Biometrics Service: Autenticado no Vision API via variável de ambiente.")
     else:
         client = vision.ImageAnnotatorClient()
-        logger.debug("Biometrics Service: Autenticado via configuração padrão.")
+        logger.debug("Biometrics Service: Autenticado no Vision API via configuração padrão.")
     return client
 
-
-def check_facematch(foto_doc_base64: str, selfie_bytes: bytes) -> dict:
-    # ... (sua função de facematch permanece a mesma)
+# ✅ NOVIDADE: Esta é a nova função de Face Match real com DeepFace.
+def check_facematch_real(img1_bytes: bytes, img2_bytes: bytes) -> dict:
+    """
+    Compara duas imagens (bytes) usando a biblioteca DeepFace e retorna um score de semelhança.
+    """
     logger = current_app.logger
-    logger.debug("Biometrics Service (Face Match): Comparando biometria facial...")
-    if not foto_doc_base64 or len(foto_doc_base64) < 100 or not selfie_bytes:
-        similaridade = 0.10
-    else:
-        similaridade = random.uniform(0.90, 0.99)
+    logger.info("Biometrics Service (Face Match Real): Iniciando comparação biométrica com DeepFace...")
 
-    threshold = current_app.config.get('FACE_MATCH_THRESHOLD', 0.90)
-    status = "APROVADO" if similaridade >= threshold else "PENDENCIA"
-    logger.info(f"Face Match: similaridade={similaridade:.2f} threshold={threshold} status={status}")
-    return {"status": status, "similaridade": similaridade, "threshold": threshold}
+    if not img1_bytes or len(img1_bytes) < 5000 or not img2_bytes or len(img2_bytes) < 5000:
+        logger.warning("Face Match Real: Uma ou ambas as imagens são muito pequenas ou inválidas.")
+        return {"status": "PENDENCIA", "motivo": "Imagem de referência ou selfie inválida.", "similaridade": 0, "threshold": 0}
+
+    # DeepFace funciona com caminhos de arquivo, então salvamos os bytes em arquivos temporários.
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp1, \
+         tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp2:
+        tmp1.write(img1_bytes)
+        tmp2.write(img2_bytes)
+        img1_path = tmp1.name
+        img2_path = tmp2.name
+
+    try:
+        # A função verify da DeepFace retorna um dicionário com o resultado.
+        # Usamos o modelo 'VGG-Face', um padrão de mercado robusto.
+        result = DeepFace.verify(
+            img1_path=img1_path,
+            img2_path=img2_path,
+            model_name='VGG-Face',
+            enforce_detection=False # Não falha se um rosto não for detectado, apenas retorna 'verified': False
+        )
+        
+        # O resultado 'distance' é a dissimilaridade. Quanto menor, mais parecidas são as faces.
+        # Convertemos para uma 'similaridade' de 0 a 1 para facilitar o entendimento.
+        distance = result.get('distance', 1.0)
+        similaridade = 1 - distance
+        
+        # Definimos um limiar de confiança. Scores acima disso são considerados APROVADOS.
+        # Este valor pode ser ajustado conforme a necessidade do negócio.
+        threshold = current_app.config.get('FACE_MATCH_THRESHOLD', 0.60) # 60% de similaridade
+        
+        status = "APROVADO" if similaridade >= threshold else "PENDENCIA"
+        
+        logger.info(f"Face Match Real: similaridade={similaridade:.4f}, threshold={threshold:.2f}, status={status}")
+        
+        return {
+            "status": status,
+            "similaridade": similaridade,
+            "threshold": threshold,
+            "detalhes": f"Score de similaridade: {similaridade*100:.2f}%"
+        }
+
+    except Exception as e:
+        logger.error(f"Erro durante a execução do DeepFace.verify: {e}", exc_info=True)
+        return {"status": "ERRO", "motivo": "Falha no serviço de biometria.", "similaridade": 0, "threshold": 0}
+
+    finally:
+        # Garante que os arquivos temporários sejam sempre removidos.
+        os.remove(img1_path)
+        os.remove(img2_path)
 
 
 def check_liveness_passivo(selfie_bytes: bytes) -> dict:
+    # A função de liveness passivo continua a mesma.
     logger = current_app.logger
-    logger.info("Biometrics Service (Liveness Passivo): Iniciando verificação de prova de vida.")
+    logger.info("Biometrics Service (Liveness Passivo): Iniciando verificação de sorriso...")
 
     try:
-        # 1. LOG INICIAL: Verifique o tipo e o início dos dados recebidos
-        logger.info(f"Tamanho da selfie recebida: {len(selfie_bytes)} bytes")
-        logger.debug(f"Tipo do dado recebido: {type(selfie_bytes)}")
-        logger.debug(f"Início dos dados (primeiros 50 bytes): {selfie_bytes[:50]}")
-
-        # 2. DECODIFICAÇÃO (seu código já está bom aqui)
         if selfie_bytes.startswith(b"data:image"):
-            logger.info("Biometrics Service: Detectado formato base64, decodificando...")
-            try:
-                header, b64data = selfie_bytes.split(b",", 1)
-                selfie_bytes = base64.b64decode(b64data)
-                logger.info(f"Tamanho da imagem após decodificação: {len(selfie_bytes)} bytes")
-            except Exception as e:
-                logger.error(f"Erro ao decodificar base64: {e}")
-                return {"status": "ERRO", "motivo": "A imagem enviada (base64) é inválida."}
-        
-        # 3. VERIFICAÇÃO DE TAMANHO MÍNIMO
-        if len(selfie_bytes) < 5000: # 5KB é um bom valor mínimo
-            logger.warning(f"Imagem recusada por ser muito pequena ({len(selfie_bytes)} bytes).")
-            return {"status": "REPROVADO", "motivo": "Imagem muito pequena ou inválida."}
-        
-        # ---> SUGESTÃO DE DEBUG: Salve a imagem para análise manual <---
-        # Crie uma pasta 'debug_images' na raiz do seu projeto.
-        # Descomente as linhas abaixo para salvar cada selfie recebida.
-        # debug_path = "debug_images"
-        # if not os.path.exists(debug_path):
-        #     os.makedirs(debug_path)
-        # with open(os.path.join(debug_path, f"selfie_{random.randint(1000,9999)}.jpg"), "wb") as f:
-        #     f.write(selfie_bytes)
+            header, b64data = selfie_bytes.split(b",", 1)
+            selfie_bytes = base64.b64decode(b64data)
 
-        # 4. CHAMADA À API
+        if len(selfie_bytes) < 5000:
+            return {"status": "REPROVADO", "motivo": "Imagem muito pequena ou inválida."}
+
         client = _get_vision_client()
         image = vision.Image(content=selfie_bytes)
         response = client.face_detection(image=image)
-        
-        # 5. LOG DETALHADO DA RESPOSTA DA API
+
         if response.error.message:
-            logger.error(f"Erro na API Google Vision: {response.error.message}")
+            logger.error(f"Erro Vision: {response.error.message}")
             return {"status": "ERRO", "motivo": response.error.message}
-        
-        # LOG da resposta completa para entender o que o Google está vendo
-        logger.debug(f"Resposta completa do Google Vision: {response}")
 
         faces = response.face_annotations
         if not faces:
-            logger.warning("Biometrics Service: Nenhum rosto detectado na imagem pela API.")
-            return {"status": "REPROVADO", "motivo": "Nenhum rosto detectado. Tente outra foto com boa iluminação e sem acessórios."}
+            return {"status": "REPROVADO", "motivo": "Nenhum rosto detectado na selfie."}
 
-        # 6. ANÁLISE DO ROSTO (seu código já está bom aqui)
         face = faces[0]
+        # ... (resto da lógica de liveness)
         likelihood_map = {
             vision.Likelihood.VERY_UNLIKELY: 0, vision.Likelihood.UNLIKELY: 1,
             vision.Likelihood.POSSIBLE: 2, vision.Likelihood.LIKELY: 3,
             vision.Likelihood.VERY_LIKELY: 4
         }
-
         joy_score = likelihood_map.get(face.joy_likelihood, 0)
-        conf = getattr(face, 'detection_confidence', 0)
-        logger.info(f"Liveness: Confiança de detecção={conf:.2f}, Score de sorriso={joy_score}/4")
-
-        # Ajuste no threshold de confiança pode ajudar
-        if conf < 0.65: # Talvez aumentar um pouco o threshold para garantir qualidade
-            return {"status": "REPROVADO", "motivo": f"Rosto detectado com baixa confiança ({conf:.2f}). Tente uma foto mais nítida."}
-
-        if joy_score >= 3: # LIKELY ou VERY_LIKELY
+        if joy_score >= 3:
             return {"status": "APROVADO", "detalhes": "Sorriso detectado. Prova de vida aprovada."}
         else:
-            return {"status": "PENDENCIA", "motivo": "Não foi possível detectar um sorriso claro. Por favor, tente novamente sorrindo para a câmera."}
+            return {"status": "PENDENCIA", "motivo": "Nenhum sorriso detectado."}
 
     except Exception as e:
-        logger.error(f"Erro inesperado em check_liveness_passivo: {e}", exc_info=True)
-        return {"status": "ERRO", "motivo": "Falha interna na análise de prova de vida."}
+        logger.error(f"Erro em check_liveness_passivo: {e}", exc_info=True)
+        return {"status": "ERRO", "motivo": "Falha na análise de prova de vida."}
