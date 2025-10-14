@@ -29,8 +29,26 @@
         .final-status.APROVADO { background-color: var(--success-color); }
         .final-status.PENDENCIA { background-color: var(--error-color); }
         pre { background-color: #eee; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word; font-size: 13px; max-height: 300px; overflow-y: auto; }
-        .nav-links { display: flex; justify-content: space-around; margin-top: 20px; } /* NOVIDADE */
-        .nav-links a { color: var(--primary-color); text-decoration: none; font-weight: 500; } /* NOVIDADE */
+        .nav-links { display: flex; justify-content: space-around; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color); }
+        .nav-links a { color: var(--primary-color); text-decoration: none; font-weight: 500; }
+        
+        /* ✅ NOVIDADE: Estilos para a tabela do QSA */
+        .qsa-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .qsa-table th, .qsa-table td {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .qsa-table th {
+            background-color: #f8f9fa;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: var(--light-text-color);
+        }
     </style>
 </head>
 <body>
@@ -53,7 +71,7 @@
     </div>
 
     <script>
-        const API_KEY = 'Le010584'; // <-- SUBSTITUA AQUI PELA SUA CHAVE REAL DA VERSEL
+        const API_KEY = 'Le010584'; // Substitua pela sua chave real
 
         const verifyButton = document.getElementById('verify-button');
         const cnpjInput = document.getElementById('cnpj-input');
@@ -87,21 +105,13 @@
             try {
                 const response = await fetch('/onboarding/pj/verificar', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-API-KEY': API_KEY
-                    },
-                    body: JSON.stringify({ cnpj: cnpj })
+                    headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+                    body: JSON.stringify({ cnpj: cnpj.replace(/\D/g, '') })
                 });
 
                 const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.erro || 'Ocorreu um erro na verificação.');
-                }
-                
+                if (!response.ok) { throw new Error(data.erro || 'Ocorreu um erro na verificação.'); }
                 displayResults(data);
-
             } catch (error) {
                 console.error("Erro ao verificar empresa:", error);
                 finalStatusContainer.innerHTML = `<div class="final-status PENDENCIA">Erro: ${error.message}</div>`;
@@ -116,6 +126,7 @@
             return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         }
 
+        // ✅ NOVIDADE: Função `displayResults` foi aprimorada para exibir o QSA.
         function displayResults(data) {
             const statusClass = data.status_geral === 'APROVADO' ? 'APROVADO' : 'PENDENCIA';
             finalStatusContainer.innerHTML = `<div class="final-status ${statusClass}">${data.status_geral}</div>`;
@@ -126,15 +137,30 @@
 
                 const header = document.createElement('div');
                 header.className = 'result-header';
-                
-                header.innerHTML = `
-                    <span>${formatStepName(key)}</span>
-                    <span class="status status-${verification.status}">${verification.status}</span>
-                `;
+                header.innerHTML = `<span>${formatStepName(key)}</span><span class="status status-${verification.status}">${verification.status}</span>`;
 
                 const body = document.createElement('div');
                 body.className = 'result-body';
-                body.innerHTML = `<pre>${JSON.stringify(verification.dados || verification.detalhes || verification.erro, null, 2)}</pre>`;
+                
+                const qsaData = verification.dados?.quadro_de_socios_e_administradores;
+
+                // Cria uma tabela para o QSA se os dados existirem
+                if (key === 'consulta_cnpj_receita' && qsaData && qsaData.length > 0) {
+                    let qsaTable = '<table class="qsa-table"><thead><tr><th>Nome</th><th>Qualificação</th></tr></thead><tbody>';
+                    qsaData.forEach(socio => {
+                        qsaTable += `<tr><td>${socio.nome_socio || 'N/A'}</td><td>${socio.qualificacao || 'N/A'}</td></tr>`;
+                    });
+                    qsaTable += '</tbody></table>';
+
+                    // Adiciona um header para a seção QSA
+                    body.innerHTML += `<h4>Quadro de Sócios e Administradores (QSA)</h4>${qsaTable}`;
+
+                    // Remove o QSA dos dados brutos para não exibir duplicado
+                    delete verification.dados.quadro_de_socios_e_administradores;
+                }
+                
+                // Exibe os outros dados em formato JSON
+                body.innerHTML += `<h4>Dados Gerais</h4><pre>${JSON.stringify(verification.dados || verification.detalhes || verification.erro, null, 2)}</pre>`;
                 
                 header.onclick = () => {
                     body.style.display = body.style.display === 'block' ? 'none' : 'block';
