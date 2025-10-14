@@ -70,7 +70,7 @@ def verificar_empresa():
         
     logger.info(f"Iniciando consulta para o CNPJ: {cnpj_limpo} via cnpj_service")
     
-    # ✅ NOVIDADE: A rota agora chama o serviço, mantendo-se limpa e focada.
+    # ✅ NOVIDADE: A rota agora chama o serviço, mantendo-se limpa e focus.
     resultado = cnpj_service.consultar_cnpj(cnpj_limpo)
     
     if resultado["sucesso"]:
