@@ -12,10 +12,13 @@ def create_app(config_class=Config):
 
     db.init_app(app)
 
-    # --- REGISTRO DOS BLUEPRINTS ---
+    # --- REGISTRO DOS BLUEPRINTS (CORRIGIDO) ---
+    
+    # Importa o blueprint de PJ do novo arquivo que criamos
     from app.onboarding_pj.routes import bp as onboarding_pj_bp
     app.register_blueprint(onboarding_pj_bp, url_prefix='/onboarding/pj')
     
+    # Importa o blueprint de PF do arquivo original (agora com o nome corrigido)
     from app.onboarding_pf.routes import bp as onboarding_pf_bp
     app.register_blueprint(onboarding_pf_bp, url_prefix='/onboarding/pf')
     
@@ -38,7 +41,7 @@ def create_app(config_class=Config):
     def autenticacao_page():
         return render_template('autenticacao.html')
 
-    # --- ROTAS DE GESTÃO DA BASE DE DADOS (RESTAURADAS) ---
+    # --- ROTAS DE GESTÃO DA BASE DE DADOS ---
     @app.route('/init-db-super-secret')
     def init_db():
         with app.app_context():
