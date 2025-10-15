@@ -68,6 +68,7 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
 
         image = vision.Image(content=doc_frente_bytes)
         
+        # --- 1. Extração de Texto ---
         response_text = client.text_detection(image=image)
         texts = response_text.text_annotations
         if not texts:
@@ -79,20 +80,24 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         full_text_flat = full_text_com_newlines.replace('\n', ' ')
         dados_extraidos = {}
         
-        cpf_padrao = r'(\d{3}\.\d{3}\.\d{3}-\d{2})'
+        # --- Regex Robusto ---
+        # ✅ CORREÇÃO: Padrões muito mais flexíveis para garantir a extração.
+        cpf_padrao = r'(\d{3}[\.\s]\d{3}[\.\s]\d{3}[-~\s]\d{2})'
         if match := re.search(cpf_padrao, full_text_flat):
             dados_extraidos['cpf'] = match.group(1)
 
-        nasc_padrao = r'(?:NASCIMENTO|DE NASCIMENTO)\n(\d{2}/\d{2}/\d{4})'
-        if match := re.search(nasc_padrao, full_text_com_newlines, re.IGNORECASE):
+        # Procura pelo primeiro padrão de data completo no texto
+        nasc_padrao = r'(\d{2}/\d{2}/\d{4})'
+        if match := re.search(nasc_padrao, full_text_flat):
             dados_extraidos['data_nascimento'] = match.group(1)
 
-        # ✅ CORREÇÃO: Regex para o nome agora ignora qualquer caractere antes de "NOME E SOBRENOM"
-        nome_padrao = r'NOME E SOBRENOME\n([A-Z\s]+?)(?=\n)'
+        # Procura pela linha que contém "NOME" e captura a linha seguinte
+        nome_padrao = r'NOME[^\n]+\n([A-Z\s]+?)(?=\n)'
         if match := re.search(nome_padrao, full_text_com_newlines, re.IGNORECASE):
             nome = match.group(1).replace('\n', ' ').strip()
             dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
 
+        # --- 2. Extração da Foto 3x4 ---
         foto_3x4_base64 = None
         response_face = client.face_detection(image=image)
         if response_face.face_annotations:
@@ -107,6 +112,7 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         else:
             logger.warning("OCR: Nenhum rosto detectado no documento para extrair a foto 3x4.")
 
+        # --- 3. Verificação Final ---
         campos_faltando = []
         if 'nome' not in dados_extraidos: campos_faltando.append('nome')
         if 'cpf' not in dados_extraidos: campos_faltando.append('cpf')
