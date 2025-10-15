@@ -27,7 +27,7 @@
         .camera-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
         .doc-overlay-shape { position: absolute; top: 50%; left: 50%; width: 90%; height: 60%; transform: translate(-50%, -50%); border-radius: 12px; border: 3px dashed white; transition: all 0.3s; }
         .selfie-overlay-shape { position: absolute; top: 50%; left: 50%; width: 70%; padding-bottom: 85%; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); border: 3px dashed white; transition: all 0.5s; }
-        .selfie-overlay-shape.detected { border-color: var(--success-color); border-style: solid; box-shadow: 0 0 0 9999px rgba(40, 167, 69, 0.4); }
+        .selfie-overlay-shape.detected, .doc-overlay-shape.detected { border-color: var(--success-color); border-style: solid; }
         .camera-instruction { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 500; z-index: 10; animation: fadeIn 0.5s; }
         .loader { border: 8px solid #f3f3f3; border-top: 8px solid var(--primary-color); border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin: 20px auto; }
         .form-group { text-align: left; margin-bottom: 15px; }
@@ -55,10 +55,40 @@
         #file-upload-name { margin-top: 10px; font-size: 14px; color: var(--light-text-color); }
         .bgc-pendencies { list-style-type: none; padding-left: 0; margin: 0; }
         .bgc-pendencies li { background-color: #fff8e1; border-left: 3px solid var(--error-color); padding: 8px 12px; margin-bottom: 5px; border-radius: 4px; font-weight: 500; }
-        .guide-shape { position: absolute; border: 3px dashed white; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; color: rgba(255, 255, 255, 0.8); font-weight: bold; font-size: 14px; text-shadow: 0 0 5px black; }
-        .face-guide { width: 60%; height: 50%; top: 5%; left: 50%; transform: translateX(-50%); border-radius: 50%; }
-        .doc-guide { width: 55%; height: 30%; bottom: 5%; left: 50%; transform: translateX(-50%); border-radius: 10px; }
-        .guide-shape.detected { border-color: var(--success-color); border-style: solid; }
+
+        /* ✅ CORREÇÃO 2: CSS para os moldes maiores (Etapa 4) */
+        .guide-shape {
+            position: absolute;
+            border: 3px dashed white;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: bold;
+            font-size: 14px;
+            text-shadow: 0 0 5px black;
+        }
+        .face-guide {
+            width: 60%;
+            height: 50%;
+            top: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 50%;
+        }
+        .doc-guide {
+            width: 55%;
+            height: 30%;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 10px;
+        }
+        .guide-shape.detected {
+            border-color: var(--success-color);
+            border-style: solid;
+        }
     </style>
 </head>
 <body>
@@ -67,12 +97,13 @@
         
         <div class="step" id="step-2">
             <h2>Documento (Frente)</h2>
-            <p>Posicione a FRENTE do seu documento na moldura e clique em capturar.</p>
+            <p>Posicione a FRENTE do seu documento na moldura e clique para capturar.</p>
             <div class="camera-container">
                 <div class="camera-feed">
                     <video id="doc_frente-webcam" autoplay playsinline></video>
                     <div class="camera-overlay">
-                        <div class="doc-overlay-shape"></div>
+                        <div id="doc_frente-overlay-shape" class="doc-overlay-shape"></div>
+                        <div id="doc_frente-instruction" class="camera-instruction" style="display: none;"></div>
                     </div>
                 </div>
                 <canvas id="doc_frente-canvas" style="display:none;"></canvas>
@@ -166,8 +197,8 @@
             stopAllMedia();
             const nextStepNumber = currentStep + 1;
             showStep(nextStepNumber);
-            // ✅ ALTERAÇÃO: a detecção de rosto para o doc_frente foi removida daqui
-            if (nextStepNumber === 2) { startCamera('doc_frente'); } 
+            // ✅ CORREÇÃO 1: Ativa a detecção de rosto para o documento na Etapa 2
+            if (nextStepNumber === 2) { startCamera('doc_frente', true); } 
             else if (nextStepNumber === 4) { startCamera('selfie_doc', true); }
             else if (nextStepNumber === 5) { runLivenessSequence(); }
             else if (nextStepNumber === 6) { verificarPessoaFisica(); }
@@ -182,12 +213,6 @@
             document.getElementById('result-container').innerHTML = '';
             document.getElementById('final-status-container').innerHTML = '';
             document.getElementById('file-upload-name').innerText = '';
-            // ✅ ALTERAÇÃO: Garante que os botões manuais reapareçam ao reiniciar
-            const captureDocButton = document.getElementById('capture-doc-button');
-            if (captureDocButton) captureDocButton.style.display = 'block';
-            const uploadWrapper = document.querySelector('#step-2 .file-upload-wrapper');
-            if (uploadWrapper) uploadWrapper.style.display = 'block';
-
             showStep(1);
         }
 
@@ -213,16 +238,25 @@
             webcamElement.srcObject = stream;
             activeStream = stream;
 
-            // ✅ ALTERAÇÃO: A lógica de detecção de rosto foi removida da Etapa 2 (doc_frente)
-            // e simplificada na Etapa 4 (selfie_doc) para apenas dar feedback, sem capturar.
             if (detectFace && instructionEl) {
                 instructionEl.style.display = 'block';
                 faceApiInterval = setInterval(async () => {
                     if (!webcamElement || webcamElement.readyState < 3) { return; }
-
                     const detections = await faceapi.detectAllFaces(webcamElement, new faceapi.TinyFaceDetectorOptions());
                     
-                    if (type === 'selfie_doc') {
+                    // ✅ CORREÇÃO 1: Lógica para feedback visual na Etapa 2
+                    if (type === 'doc_frente') {
+                        const overlayEl = document.getElementById('doc_frente-overlay-shape');
+                        if (detections && detections.length === 1) {
+                            instructionEl.innerText = "Documento posicionado!";
+                            if(overlayEl) overlayEl.classList.add('detected');
+                        } else {
+                            instructionEl.innerText = "Centralize a foto do documento";
+                            if(overlayEl) overlayEl.classList.remove('detected');
+                        }
+                    }
+                    
+                    else if (type === 'selfie_doc') {
                         const faceGuide = document.querySelector('.face-guide');
                         const docGuide = document.querySelector('.doc-guide');
 
@@ -249,6 +283,8 @@
             canvasElement.width = webcamElement.videoWidth;
             canvasElement.height = webcamElement.videoHeight;
             
+            stopAllMedia(); // Para a câmera e a detecção imediatamente após o clique
+            
             if (type.startsWith('selfie')) {
                 context.scale(-1, 1);
                 context.drawImage(webcamElement, -canvasElement.width, 0, canvasElement.width, canvasElement.height);
@@ -257,7 +293,6 @@
             }
 
             canvasElement.toBlob(function(blob) {
-                stopAllMedia(); // Para a câmera imediatamente após a captura
                 if (type === 'doc_frente') {
                     capturedDocFrenteBlob = blob;
                     showStep(3);
@@ -316,7 +351,7 @@
                     stopAllMedia();
                     capturedDocFrenteBlob = null;
                     showStep(2);
-                    startCamera('doc_frente');
+                    startCamera('doc_frente', true);
                 } else {
                     restart();
                 }
@@ -324,6 +359,7 @@
         }
         
         async function verificarPessoaFisica() {
+            showStep(6); // Mostra a tela de "Analisando"
             if (!capturedDocFrenteBlob || !capturedSelfieDocBlob || !capturedSelfieBlob) { 
                 alert("Ocorreu um erro na captura de todas as imagens. Por favor, reinicie."); 
                 restart(); 
@@ -343,13 +379,27 @@
                 if (response.ok) {
                     displayResults(data);
                 } else {
-                    const errorMessage = data.erro || data.motivo || 'Erro desconhecido na API.';
-                    alert("Erro na verificação: " + errorMessage + ". Por favor, tente novamente.");
-                    restart();
+                    // ✅ CORREÇÃO 3: Exibe o erro na tela de resultados em vez de reiniciar
+                    displayResults({
+                        status_geral: 'ERRO',
+                        workflow_executado: {
+                            'erro_na_verificacao': {
+                                status: 'ERRO',
+                                detalhes: data.erro || data.motivo || 'Erro desconhecido na API.'
+                            }
+                        }
+                    });
                 }
             } catch (error) { 
-                alert("Erro de comunicação com o servidor. Verifique sua conexão e tente novamente. Detalhes: " + error.message); 
-                restart(); 
+                displayResults({
+                    status_geral: 'ERRO',
+                    workflow_executado: {
+                        'erro_de_comunicacao': {
+                            status: 'ERRO',
+                            detalhes: error.message
+                        }
+                    }
+                });
             } finally { 
                 showStep(7);
             }
