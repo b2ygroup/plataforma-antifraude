@@ -289,8 +289,7 @@
                 capturedDocFrenteBlob = file;
                 await sleep(500);
                 showStep(3);
-                // ✅ CORREÇÃO: Passa a variável correta para a função
-                extrairDadosDoDocumento(capturedDocFrenteBlob);
+                extrairDadosDoDocumento(capturedDocFrenteBlob); // ✅ CORREÇÃO: Passa a variável correta
             }
         }
 
@@ -316,6 +315,7 @@
                 ocrForm.style.display = 'block';
                 ocrInstruction.innerText = 'Verifique se os dados extraídos do seu documento estão corretos.';
             } catch (error) {
+                // ✅ CORREÇÃO: Lógica "Tentar Novamente" agora limpa o estado e reinicia a câmera.
                 const tryAgain = confirm(`Falha na Leitura: ${error.message}\nDeseja tentar novamente?`);
                 if (tryAgain) {
                     stopAllMedia();
@@ -327,7 +327,7 @@
                 }
             }
         }
-        
+
         function getGeolocationAndVerify() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
