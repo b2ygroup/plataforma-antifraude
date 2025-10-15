@@ -12,7 +12,7 @@ from google.cloud import vision
 from google.oauth2 import service_account
 import cloudinary
 import cloudinary.uploader
-from PIL import Image, ImageEnhance
+from PIL import Image
 from app.services import bgc_service, biometrics_service, data_service, document_service, score_service
 
 bp = Blueprint('onboarding_pf', __name__)
@@ -25,23 +25,18 @@ cloudinary.config(
 )
 
 def require_api_key(f):
-    """Decorator para exigir uma chave de API nas rotas."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         api_key = os.environ.get('PLATFORM_API_KEY')
         if not api_key:
-            current_app.logger.error("A autenticação de API não está configurada no servidor (PLATFORM_API_KEY não encontrada).")
             return jsonify({"erro": "A autenticação de API não está configurada no servidor."}), 500
-        
         if request.headers.get('X-API-KEY') and request.headers.get('X-API-KEY') == api_key:
             return f(*args, **kwargs)
         else:
-            current_app.logger.warning("Tentativa de acesso não autorizado: Chave de API inválida ou não fornecida.")
             return jsonify({"erro": "Chave de API inválida ou não fornecida."}), 401
     return decorated_function
 
 def get_vision_client():
-    """Inicializa e retorna o cliente da Google Vision API com as credenciais apropriadas."""
     logger = current_app.logger
     google_creds_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
     if google_creds_json_str:
@@ -57,28 +52,7 @@ def get_vision_client():
             client = None
     return client
 
-def preprocess_image_bytes(img_bytes: bytes) -> bytes:
-    """Redimensiona, converte e aumenta contraste para melhorar OCR."""
-    try:
-        img = Image.open(BytesIO(img_bytes)).convert("RGB")
-        max_dim = 2048
-        if max(img.size) > max_dim:
-            img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
-
-        enhancer = ImageEnhance.Contrast(img)
-        img = enhancer.enhance(1.3)
-        enhancer_s = ImageEnhance.Sharpness(img)
-        img = enhancer_s.enhance(1.1)
-
-        buf = BytesIO()
-        img.save(buf, format="JPEG", quality=95)
-        return buf.getvalue()
-    except Exception as e:
-        current_app.logger.warning(f"Pré-processamento de imagem falhou: {e}")
-        return img_bytes
-
 def analisar_documento_com_google_vision(doc_frente_bytes):
-    """Usa a Google Vision API para extrair texto (OCR) e a foto 3x4 de um documento."""
     logger = current_app.logger
     logger.info("OCR: Iniciando análise de documento...")
     try:
@@ -86,13 +60,9 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         if client is None:
             return {"status": "ERRO_CONFIGURACAO", "motivo": "Serviço de OCR não configurado."}
 
-        # ✅ OTIMIZAÇÃO: Pré-processamento da imagem para melhorar a qualidade do OCR
-        doc_bytes_processado = preprocess_image_bytes(doc_frente_bytes)
-        logger.info(f"OCR: Tamanho da imagem otimizada: {len(doc_bytes_processado)} bytes")
-
-        image = vision.Image(content=doc_bytes_processado)
+        # ✅ CORREÇÃO: Removemos o pré-processamento para enviar a imagem original de alta qualidade.
+        image = vision.Image(content=doc_frente_bytes)
         
-        # --- 1. Extração de Texto com Fallback ---
         full_text = ""
         response_text = client.text_detection(image=image)
         texts = getattr(response_text, 'text_annotations', None)
@@ -110,7 +80,6 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
             logger.error("OCR: Nenhum texto detectado por nenhuma estratégia.")
             return {"status": "REPROVADO_OCR", "motivo": "Não foi possível detectar texto no documento."}
 
-        logger.info(f"OCR: Texto completo extraído (preview): {full_text[:200].replace('\n', ' ')}")
         full_text_flat = full_text.replace('\n', ' ')
         dados_extraidos = {}
         
@@ -127,27 +96,23 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
             nome = match.group(1).replace('\n', ' ').strip()
             dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
 
-        # --- 2. Extração da Foto 3x4 ---
         foto_3x4_base64 = None
-        image_original = vision.Image(content=doc_frente_bytes)
-        response_face = client.face_detection(image=image_original)
+        response_face = client.face_detection(image=image)
         if response_face.face_annotations:
             face = response_face.face_annotations[0]
             vertices = face.bounding_poly.vertices
-            img_original_pil = Image.open(BytesIO(doc_frente_bytes))
-            cropped_image = img_original_pil.crop((vertices[0].x, vertices[0].y, vertices[2].x, vertices[2].y))
+            img = Image.open(BytesIO(doc_frente_bytes))
+            cropped_image = img.crop((vertices[0].x, vertices[0].y, vertices[2].x, vertices[2].y))
             buffered = BytesIO()
-            cropped_image.save(buffered, format="JPEG")
+            cropped_image.save(buffered, format="JPEG", quality=90)
             foto_3x4_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
             logger.info("OCR: Foto 3x4 extraída com sucesso.")
         else:
             logger.warning("OCR: Nenhum rosto detectado no documento.")
 
-        # --- 3. Verificação Final ---
         campos_faltando = [f for f in ('nome', 'cpf', 'data_nascimento') if f not in dados_extraidos]
         if campos_faltando:
-            motivo = f"Não foi possível extrair os seguintes campos: {', '.join(campos_faltando)}. Tente uma foto melhor."
-            logger.warning(f"OCR: {motivo}")
+            motivo = f"Não foi possível extrair os campos: {', '.join(campos_faltando)}. Tente uma foto melhor."
             return {"status": "REPROVADO_OCR", "motivo": motivo}
 
         logger.info(f"OCR: Dados extraídos com sucesso: {dados_extraidos}")
@@ -168,8 +133,6 @@ def extrair_ocr():
         return jsonify({"status": "REPROVADO_OCR", "motivo": "O arquivo do documento está vazio."}), 200
     
     resultado_ocr = analisar_documento_com_google_vision(doc_bytes)
-    
-    # ✅ CORREÇÃO: Sempre retorna 200 OK
     return jsonify(resultado_ocr), 200
 
 @bp.route('/verificar', methods=['POST'])
@@ -204,9 +167,7 @@ def verificar_pessoa_fisica():
     arquivo_selfie_liveness.seek(0); selfie_liveness_bytes = arquivo_selfie_liveness.read()
     
     foto_doc_bytes = b''
-    if foto_doc_b64 and len(foto_doc_b64) > 100:
-        if ',' in foto_doc_b64:
-            foto_doc_b64 = foto_doc_b64.split(',')[1]
+    if foto_doc_b64:
         try:
             foto_doc_bytes = base64.b64decode(foto_doc_b64)
         except Exception as e:
@@ -251,7 +212,7 @@ def verificar_pessoa_fisica():
         nova_verificacao.set_resultado_completo(resposta_final)
         db.session.add(nova_verificacao)
         db.session.commit()
-        logger.info(f"Verificação para {nome_cliente} salva com sucesso no BD com score {score_result.get('score')}.")
+        logger.info(f"Verificação para {nome_cliente} salva com sucesso no BD.")
     except Exception as e:
         logger.error(f'Falha ao salvar no BD: {e}', exc_info=True)
         db.session.rollback()
