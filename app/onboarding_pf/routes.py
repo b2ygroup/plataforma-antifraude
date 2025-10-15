@@ -12,7 +12,7 @@ from google.cloud import vision
 from google.oauth2 import service_account
 import cloudinary
 import cloudinary.uploader
-from PIL import Image
+from PIL import Image, ImageEnhance
 from app.services import bgc_service, biometrics_service, data_service, document_service, score_service
 
 bp = Blueprint('onboarding_pf', __name__)
@@ -57,6 +57,26 @@ def get_vision_client():
             client = None
     return client
 
+def preprocess_image_bytes(img_bytes: bytes) -> bytes:
+    """Redimensiona, converte e aumenta contraste para melhorar OCR."""
+    try:
+        img = Image.open(BytesIO(img_bytes)).convert("RGB")
+        max_dim = 2048
+        if max(img.size) > max_dim:
+            img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+
+        enhancer = ImageEnhance.Contrast(img)
+        img = enhancer.enhance(1.3)
+        enhancer_s = ImageEnhance.Sharpness(img)
+        img = enhancer_s.enhance(1.1)
+
+        buf = BytesIO()
+        img.save(buf, format="JPEG", quality=95)
+        return buf.getvalue()
+    except Exception as e:
+        current_app.logger.warning(f"Pré-processamento de imagem falhou: {e}")
+        return img_bytes
+
 def analisar_documento_com_google_vision(doc_frente_bytes):
     """Usa a Google Vision API para extrair texto (OCR) e a foto 3x4 de um documento."""
     logger = current_app.logger
@@ -67,24 +87,31 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
             return {"status": "ERRO_CONFIGURACAO", "motivo": "Serviço de OCR não configurado."}
 
         # ✅ OTIMIZAÇÃO: Pré-processamento da imagem para melhorar a qualidade do OCR
-        logger.info("OCR: Pré-processando imagem para otimizar a leitura.")
-        img = Image.open(BytesIO(doc_frente_bytes))
-        img = img.convert('RGB')
-        img.thumbnail((2048, 2048))
-        buffer = BytesIO()
-        img.save(buffer, format='JPEG', quality=95)
-        doc_bytes_processado = buffer.getvalue()
+        doc_bytes_processado = preprocess_image_bytes(doc_frente_bytes)
         logger.info(f"OCR: Tamanho da imagem otimizada: {len(doc_bytes_processado)} bytes")
 
         image = vision.Image(content=doc_bytes_processado)
         
+        # --- 1. Extração de Texto com Fallback ---
+        full_text = ""
         response_text = client.text_detection(image=image)
-        texts = response_text.text_annotations
-        if not texts:
+        texts = getattr(response_text, 'text_annotations', None)
+        if texts:
+            full_text = texts[0].description
+            logger.info("OCR: text_detection extraiu texto.")
+        else:
+            logger.warning("OCR: text_detection retornou vazio, tentando document_text_detection.")
+            response_doc = client.document_text_detection(image=image)
+            if getattr(response_doc, 'full_text_annotation', None):
+                full_text = response_doc.full_text_annotation.text
+                logger.info("OCR: document_text_detection extraiu texto.")
+        
+        if not full_text.strip():
+            logger.error("OCR: Nenhum texto detectado por nenhuma estratégia.")
             return {"status": "REPROVADO_OCR", "motivo": "Não foi possível detectar texto no documento."}
 
-        full_text_com_newlines = texts[0].description
-        full_text_flat = full_text_com_newlines.replace('\n', ' ')
+        logger.info(f"OCR: Texto completo extraído (preview): {full_text[:200].replace('\n', ' ')}")
+        full_text_flat = full_text.replace('\n', ' ')
         dados_extraidos = {}
         
         cpf_padrao = r'(\d{3}[\.\s]\d{3}[\.\s]\d{3}[-~\s]\d{2})'
@@ -96,10 +123,11 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
             dados_extraidos['data_nascimento'] = match.group(1)
         
         nome_padrao = r'NOME[^\n]+\n([A-Z\s]+?)(?=\n)'
-        if match := re.search(nome_padrao, full_text_com_newlines, re.IGNORECASE):
+        if match := re.search(nome_padrao, full_text, re.IGNORECASE):
             nome = match.group(1).replace('\n', ' ').strip()
             dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
 
+        # --- 2. Extração da Foto 3x4 ---
         foto_3x4_base64 = None
         image_original = vision.Image(content=doc_frente_bytes)
         response_face = client.face_detection(image=image_original)
@@ -111,17 +139,14 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
             buffered = BytesIO()
             cropped_image.save(buffered, format="JPEG")
             foto_3x4_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-            logger.info("OCR: Foto 3x4 extraída com sucesso do documento.")
+            logger.info("OCR: Foto 3x4 extraída com sucesso.")
         else:
-            logger.warning("OCR: Nenhum rosto detectado no documento para extrair a foto 3x4.")
+            logger.warning("OCR: Nenhum rosto detectado no documento.")
 
-        campos_faltando = []
-        if 'nome' not in dados_extraidos: campos_faltando.append('nome')
-        if 'cpf' not in dados_extraidos: campos_faltando.append('cpf')
-        if 'data_nascimento' not in dados_extraidos: campos_faltando.append('data_nascimento')
-
+        # --- 3. Verificação Final ---
+        campos_faltando = [f for f in ('nome', 'cpf', 'data_nascimento') if f not in dados_extraidos]
         if campos_faltando:
-            motivo = f"Não foi possível extrair os seguintes campos: {', '.join(campos_faltando)}. Tente uma foto com melhor iluminação e sem reflexos."
+            motivo = f"Não foi possível extrair os seguintes campos: {', '.join(campos_faltando)}. Tente uma foto melhor."
             logger.warning(f"OCR: {motivo}")
             return {"status": "REPROVADO_OCR", "motivo": motivo}
 
@@ -131,7 +156,6 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
     except Exception as e:
         logger.error(f"OCR: Erro inesperado na função de análise: {e}", exc_info=True)
         return {"status": "ERRO_API", "motivo": "Ocorreu um erro interno no serviço de IA."}
-
 
 @bp.route('/extrair-ocr', methods=['POST'])
 @require_api_key
@@ -145,7 +169,7 @@ def extrair_ocr():
     
     resultado_ocr = analisar_documento_com_google_vision(doc_bytes)
     
-    # ✅ CORREÇÃO: Sempre retorna 200, mesmo que o OCR falhe
+    # ✅ CORREÇÃO: Sempre retorna 200 OK
     return jsonify(resultado_ocr), 200
 
 @bp.route('/verificar', methods=['POST'])
