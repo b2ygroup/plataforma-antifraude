@@ -66,44 +66,48 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         if client is None:
             return {"status": "ERRO_CONFIGURACAO", "motivo": "Serviço de OCR não configurado."}
 
-        image = vision.Image(content=doc_frente_bytes)
+        # ✅ OTIMIZAÇÃO: Pré-processamento da imagem para melhorar a qualidade do OCR
+        logger.info("OCR: Pré-processando imagem para otimizar a leitura.")
+        img = Image.open(BytesIO(doc_frente_bytes))
+        img = img.convert('RGB')
+        img.thumbnail((2048, 2048))
+        buffer = BytesIO()
+        img.save(buffer, format='JPEG', quality=95)
+        doc_bytes_processado = buffer.getvalue()
+        logger.info(f"OCR: Tamanho da imagem otimizada: {len(doc_bytes_processado)} bytes")
+
+        image = vision.Image(content=doc_bytes_processado)
         
-        # --- 1. Extração de Texto ---
         response_text = client.text_detection(image=image)
         texts = response_text.text_annotations
         if not texts:
-            return {"status": "REPROVADO_OCR", "motivo": "Não foi possível detetar texto no documento."}
-        
+            return {"status": "REPROVADO_OCR", "motivo": "Não foi possível detectar texto no documento."}
+
         full_text_com_newlines = texts[0].description
-        logger.info(f"OCR: Texto completo extraído:\n---\n{full_text_com_newlines}\n---")
-        
         full_text_flat = full_text_com_newlines.replace('\n', ' ')
         dados_extraidos = {}
         
-        # ✅ CORREÇÃO: Padrões de regex muito mais flexíveis para garantir a extração.
         cpf_padrao = r'(\d{3}[\.\s]\d{3}[\.\s]\d{3}[-~\s]\d{2})'
         if match := re.search(cpf_padrao, full_text_flat):
             dados_extraidos['cpf'] = match.group(1)
 
-        # Procura pelo primeiro padrão de data completo no texto
         nasc_padrao = r'(\d{2}/\d{2}/\d{4})'
         if match := re.search(nasc_padrao, full_text_flat):
             dados_extraidos['data_nascimento'] = match.group(1)
         
-        # Procura pela linha que contém "NOME" e captura a linha seguinte, ignorando "ruídos"
         nome_padrao = r'NOME[^\n]+\n([A-Z\s]+?)(?=\n)'
         if match := re.search(nome_padrao, full_text_com_newlines, re.IGNORECASE):
             nome = match.group(1).replace('\n', ' ').strip()
             dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
 
-        # --- 2. Extração da Foto 3x4 ---
         foto_3x4_base64 = None
-        response_face = client.face_detection(image=image)
+        image_original = vision.Image(content=doc_frente_bytes)
+        response_face = client.face_detection(image=image_original)
         if response_face.face_annotations:
             face = response_face.face_annotations[0]
             vertices = face.bounding_poly.vertices
-            img = Image.open(BytesIO(doc_frente_bytes))
-            cropped_image = img.crop((vertices[0].x, vertices[0].y, vertices[2].x, vertices[2].y))
+            img_original_pil = Image.open(BytesIO(doc_frente_bytes))
+            cropped_image = img_original_pil.crop((vertices[0].x, vertices[0].y, vertices[2].x, vertices[2].y))
             buffered = BytesIO()
             cropped_image.save(buffered, format="JPEG")
             foto_3x4_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
@@ -111,14 +115,13 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         else:
             logger.warning("OCR: Nenhum rosto detectado no documento para extrair a foto 3x4.")
 
-        # --- 3. Verificação Final ---
         campos_faltando = []
         if 'nome' not in dados_extraidos: campos_faltando.append('nome')
         if 'cpf' not in dados_extraidos: campos_faltando.append('cpf')
         if 'data_nascimento' not in dados_extraidos: campos_faltando.append('data_nascimento')
 
         if campos_faltando:
-            motivo = f"Não foi possível extrair os seguintes campos do documento: {', '.join(campos_faltando)}. Por favor, tente uma foto com melhor iluminação e sem reflexos."
+            motivo = f"Não foi possível extrair os seguintes campos: {', '.join(campos_faltando)}. Tente uma foto com melhor iluminação e sem reflexos."
             logger.warning(f"OCR: {motivo}")
             return {"status": "REPROVADO_OCR", "motivo": motivo}
 
@@ -129,21 +132,21 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         logger.error(f"OCR: Erro inesperado na função de análise: {e}", exc_info=True)
         return {"status": "ERRO_API", "motivo": "Ocorreu um erro interno no serviço de IA."}
 
+
 @bp.route('/extrair-ocr', methods=['POST'])
 @require_api_key
 def extrair_ocr():
     if 'documento_frente' not in request.files:
-        return jsonify({"erro": "O arquivo 'documento_frente' é obrigatório."}), 400
+        return jsonify({"status": "ERRO", "motivo": "O arquivo 'documento_frente' é obrigatório."}), 200
+
     doc_bytes = request.files['documento_frente'].read()
     if not doc_bytes:
-        return jsonify({"status": "REPROVADO_OCR", "motivo": "O arquivo do documento está vazio."}), 400
+        return jsonify({"status": "REPROVADO_OCR", "motivo": "O arquivo do documento está vazio."}), 200
     
     resultado_ocr = analisar_documento_com_google_vision(doc_bytes)
     
-    if resultado_ocr.get('status') == 'SUCESSO':
-        return jsonify(resultado_ocr)
-    else:
-        return jsonify(resultado_ocr), 400
+    # ✅ CORREÇÃO: Sempre retorna 200, mesmo que o OCR falhe
+    return jsonify(resultado_ocr), 200
 
 @bp.route('/verificar', methods=['POST'])
 @require_api_key
