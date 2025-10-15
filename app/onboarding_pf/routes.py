@@ -25,43 +25,34 @@ cloudinary.config(
 )
 
 def require_api_key(f):
-    """Decorator para exigir uma chave de API nas rotas."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         api_key = os.environ.get('PLATFORM_API_KEY')
         if not api_key:
-            current_app.logger.error("A autenticação de API não está configurada no servidor (PLATFORM_API_KEY não encontrada).")
             return jsonify({"erro": "A autenticação de API não está configurada no servidor."}), 500
-        
         if request.headers.get('X-API-KEY') and request.headers.get('X-API-KEY') == api_key:
             return f(*args, **kwargs)
         else:
-            current_app.logger.warning("Tentativa de acesso não autorizado: Chave de API inválida ou não fornecida.")
             return jsonify({"erro": "Chave de API inválida ou não fornecida."}), 401
     return decorated_function
 
 def get_vision_client():
-    """Inicializa e retorna o cliente da Google Vision API com as credenciais apropriadas."""
     logger = current_app.logger
     google_creds_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
     if google_creds_json_str:
-        logger.info("Autenticando no Google Vision via variável de ambiente (Produção).")
         creds_dict = json.loads(google_creds_json_str)
         credentials = service_account.Credentials.from_service_account_info(creds_dict)
         client = vision.ImageAnnotatorClient(credentials=credentials)
     else:
-        logger.info("Autenticando no Google Vision via arquivo local (Desenvolvimento).")
         credentials_path = os.path.join(current_app.root_path, '..', 'google-credentials.json')
         if os.path.exists(credentials_path):
             os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
             client = vision.ImageAnnotatorClient()
         else:
-            logger.error("Arquivo de credenciais do Google (google-credentials.json) não encontrado para desenvolvimento local.")
             client = None
     return client
 
 def analisar_documento_com_google_vision(doc_frente_bytes):
-    """Usa a Google Vision API para extrair texto (OCR) e a foto 3x4 de um documento."""
     logger = current_app.logger
     logger.info("OCR: Iniciando análise de documento...")
     try:
@@ -70,13 +61,11 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
             return {"status": "ERRO_CONFIGURACAO", "motivo": "Serviço de OCR não configurado."}
 
         image = vision.Image(content=doc_frente_bytes)
-        
-        # --- 1. Extração de Texto ---
         response_text = client.text_detection(image=image)
         texts = response_text.text_annotations
         if not texts:
             return {"status": "REPROVADO_OCR", "motivo": "Não foi possível detetar texto no documento."}
-        
+
         full_text_com_newlines = texts[0].description
         logger.info(f"OCR: Texto completo extraído:\n---\n{full_text_com_newlines}\n---")
         
@@ -91,24 +80,19 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         if match := re.search(nasc_padrao, full_text_com_newlines, re.IGNORECASE):
             dados_extraidos['data_nascimento'] = match.group(1)
 
-        nome_padrao = r'(?:NOME E SOBRENOME|NOME)\n([A-Z\s]+?)(?=\n)'
+        # ✅ CORREÇÃO: Regex para o nome agora ignora caracteres extras (como ") antes da quebra de linha.
+        nome_padrao = r'(?:NOME E SOBRENOME|NOME)[^\n]*\n([A-Z\s]+?)(?=\n)'
         if match := re.search(nome_padrao, full_text_com_newlines, re.IGNORECASE):
             nome = match.group(1).replace('\n', ' ').strip()
             dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
 
-        # --- 2. Extração da Foto 3x4 ---
         foto_3x4_base64 = None
         response_face = client.face_detection(image=image)
         if response_face.face_annotations:
             face = response_face.face_annotations[0]
             vertices = face.bounding_poly.vertices
-            
             img = Image.open(BytesIO(doc_frente_bytes))
-            
-            # Corta a imagem na área do rosto detectado
             cropped_image = img.crop((vertices[0].x, vertices[0].y, vertices[2].x, vertices[2].y))
-            
-            # Salva a imagem cortada em memória e a converte para base64
             buffered = BytesIO()
             cropped_image.save(buffered, format="JPEG")
             foto_3x4_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
@@ -116,7 +100,6 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         else:
             logger.warning("OCR: Nenhum rosto detectado no documento para extrair a foto 3x4.")
 
-        # --- 3. Verificação Final ---
         campos_faltando = []
         if 'nome' not in dados_extraidos: campos_faltando.append('nome')
         if 'cpf' not in dados_extraidos: campos_faltando.append('cpf')
@@ -134,10 +117,10 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         logger.error(f"OCR: Erro inesperado na função de análise: {e}", exc_info=True)
         return {"status": "ERRO_API", "motivo": "Ocorreu um erro interno no serviço de IA."}
 
+
 @bp.route('/extrair-ocr', methods=['POST'])
 @require_api_key
 def extrair_ocr():
-    """Rota para extrair dados de um documento via OCR."""
     if 'documento_frente' not in request.files:
         return jsonify({"erro": "O arquivo 'documento_frente' é obrigatório."}), 400
     doc_bytes = request.files['documento_frente'].read()
@@ -154,7 +137,6 @@ def extrair_ocr():
 @bp.route('/verificar', methods=['POST'])
 @require_api_key
 def verificar_pessoa_fisica():
-    """Rota principal que executa o workflow de verificação de Pessoa Física."""
     logger = current_app.logger
     if 'documento_frente' not in request.files or 'selfie_documento' not in request.files or 'selfie_liveness' not in request.files:
         return jsonify({"erro": "Todos os arquivos são obrigatórios."}), 400
@@ -230,4 +212,3 @@ def verificar_pessoa_fisica():
         db.session.rollback()
 
     return jsonify(resposta_final), 200
-
