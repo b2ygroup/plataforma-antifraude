@@ -25,23 +25,18 @@ cloudinary.config(
 )
 
 def require_api_key(f):
-    """Decorator para exigir uma chave de API nas rotas."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         api_key = os.environ.get('PLATFORM_API_KEY')
         if not api_key:
-            current_app.logger.error("A autenticação de API não está configurada no servidor (PLATFORM_API_KEY não encontrada).")
             return jsonify({"erro": "A autenticação de API não está configurada no servidor."}), 500
-        
         if request.headers.get('X-API-KEY') and request.headers.get('X-API-KEY') == api_key:
             return f(*args, **kwargs)
         else:
-            current_app.logger.warning("Tentativa de acesso não autorizado: Chave de API inválida ou não fornecida.")
             return jsonify({"erro": "Chave de API inválida ou não fornecida."}), 401
     return decorated_function
 
 def get_vision_client():
-    """Inicializa e retorna o cliente da Google Vision API com as credenciais apropriadas."""
     logger = current_app.logger
     google_creds_json_str = os.environ.get('GOOGLE_CREDENTIALS_JSON')
     if google_creds_json_str:
@@ -58,7 +53,6 @@ def get_vision_client():
     return client
 
 def analisar_documento_com_google_vision(doc_frente_bytes):
-    """Usa a Google Vision API para extrair texto (OCR) e a foto 3x4 de um documento."""
     logger = current_app.logger
     logger.info("OCR: Iniciando análise de documento...")
     try:
@@ -67,21 +61,18 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
             return {"status": "ERRO_CONFIGURACAO", "motivo": "Serviço de OCR não configurado."}
 
         image = vision.Image(content=doc_frente_bytes)
-        
-        # --- 1. Extração de Texto ---
         response_text = client.text_detection(image=image)
         texts = response_text.text_annotations
         if not texts:
             return {"status": "REPROVADO_OCR", "motivo": "Não foi possível detetar texto no documento."}
-        
+
         full_text_com_newlines = texts[0].description
         logger.info(f"OCR: Texto completo extraído:\n---\n{full_text_com_newlines}\n---")
         
         full_text_flat = full_text_com_newlines.replace('\n', ' ')
         dados_extraidos = {}
         
-        # --- Regex Robusto ---
-        # ✅ CORREÇÃO: Padrões muito mais flexíveis para garantir a extração.
+        # ✅ CORREÇÃO: Padrões de regex muito mais flexíveis para garantir a extração.
         cpf_padrao = r'(\d{3}[\.\s]\d{3}[\.\s]\d{3}[-~\s]\d{2})'
         if match := re.search(cpf_padrao, full_text_flat):
             dados_extraidos['cpf'] = match.group(1)
@@ -90,14 +81,13 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         nasc_padrao = r'(\d{2}/\d{2}/\d{4})'
         if match := re.search(nasc_padrao, full_text_flat):
             dados_extraidos['data_nascimento'] = match.group(1)
-
-        # Procura pela linha que contém "NOME" e captura a linha seguinte
+        
+        # Procura pela linha que contém "NOME" e captura a linha seguinte, ignorando "ruídos"
         nome_padrao = r'NOME[^\n]+\n([A-Z\s]+?)(?=\n)'
         if match := re.search(nome_padrao, full_text_com_newlines, re.IGNORECASE):
             nome = match.group(1).replace('\n', ' ').strip()
             dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
 
-        # --- 2. Extração da Foto 3x4 ---
         foto_3x4_base64 = None
         response_face = client.face_detection(image=image)
         if response_face.face_annotations:
@@ -112,7 +102,6 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
         else:
             logger.warning("OCR: Nenhum rosto detectado no documento para extrair a foto 3x4.")
 
-        # --- 3. Verificação Final ---
         campos_faltando = []
         if 'nome' not in dados_extraidos: campos_faltando.append('nome')
         if 'cpf' not in dados_extraidos: campos_faltando.append('cpf')
@@ -129,6 +118,7 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
     except Exception as e:
         logger.error(f"OCR: Erro inesperado na função de análise: {e}", exc_info=True)
         return {"status": "ERRO_API", "motivo": "Ocorreu um erro interno no serviço de IA."}
+
 
 @bp.route('/extrair-ocr', methods=['POST'])
 @require_api_key
@@ -156,6 +146,10 @@ def verificar_pessoa_fisica():
     nome_cliente = request.form.get('nome', 'N/A')
     cpf_cliente = request.form.get('cpf', 'N/A')
     foto_doc_b64 = request.form.get('foto_documento_b64', '')
+    # ✅ NOVIDADE: Captura dos dados de geolocalização
+    latitude = request.form.get('latitude')
+    longitude = request.form.get('longitude')
+
     arquivo_frente = request.files['documento_frente']
     arquivo_selfie_doc = request.files['selfie_documento']
     arquivo_selfie_liveness = request.files['selfie_liveness']
@@ -206,12 +200,16 @@ def verificar_pessoa_fisica():
     resposta_final["risk_score"] = score_result
     
     try:
+        dados_extra = {'selfie_documento_url': selfie_doc_url}
+        if latitude and longitude:
+            dados_extra['geolocalizacao'] = {'latitude': latitude, 'longitude': longitude}
+
         nova_verificacao = Verificacao(
             tipo_verificacao='PF',
             status_geral=status_geral,
             doc_frente_url=doc_frente_url,
             selfie_url=selfie_liveness_url,
-            dados_extra_json={'selfie_documento_url': selfie_doc_url},
+            dados_extra_json=dados_extra, # ✅ NOVIDADE: Salva a geolocalização
             risk_score=score_result.get('score')
         )
         nova_verificacao.set_dados_entrada({'nome': nome_cliente, 'cpf': cpf_cliente})

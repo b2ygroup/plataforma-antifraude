@@ -120,6 +120,7 @@
         let activeStream = null; 
         let ocrResultData = {}; 
         let faceApiInterval = null;
+        let userGeolocation = null;
         
         const API_KEY = 'Le010584';
 
@@ -169,7 +170,7 @@
             if (nextStepNumber === 2) { startCamera('doc_frente', true); } 
             else if (nextStepNumber === 4) { startCamera('selfie_doc', true); }
             else if (nextStepNumber === 5) { runLivenessSequence(); }
-            else if (nextStepNumber === 6) { verificarPessoaFisica(); }
+            else if (nextStepNumber === 6) { getGeolocationAndVerify(); }
         }
         
         function restart() {
@@ -177,6 +178,7 @@
             capturedSelfieDocBlob = null; 
             capturedSelfieBlob = null; 
             ocrResultData = {};
+            userGeolocation = null;
             stopAllMedia();
             document.getElementById('result-container').innerHTML = '';
             document.getElementById('final-status-container').innerHTML = '';
@@ -324,6 +326,28 @@
                 }
             }
         }
+
+        function getGeolocationAndVerify() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        userGeolocation = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                        };
+                        console.log("Geolocalização obtida:", userGeolocation);
+                        verificarPessoaFisica();
+                    },
+                    (error) => {
+                        console.warn("Usuário negou a geolocalização. Prosseguindo sem.", error.message);
+                        verificarPessoaFisica();
+                    }
+                );
+            } else {
+                console.warn("Navegador não suporta geolocalização. Prosseguindo sem.");
+                verificarPessoaFisica();
+            }
+        }
         
         async function verificarPessoaFisica() {
             showStep(6);
@@ -336,6 +360,10 @@
             formData.append('nome', document.getElementById('nome').value);
             formData.append('cpf', document.getElementById('cpf').value);
             if (ocrResultData.foto_3x4_base64) { formData.append('foto_documento_b64', ocrResultData.foto_3x4_base64); }
+            if (userGeolocation) {
+                formData.append('latitude', userGeolocation.latitude);
+                formData.append('longitude', userGeolocation.longitude);
+            }
             formData.append('documento_frente', capturedDocFrenteBlob, 'doc_frente.jpg');
             formData.append('selfie_documento', capturedSelfieDocBlob, 'selfie_documento.jpg');
             formData.append('selfie_liveness', capturedSelfieBlob, 'selfie_liveness.jpg');
