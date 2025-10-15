@@ -55,6 +55,8 @@
         #file-upload-name { margin-top: 10px; font-size: 14px; color: var(--light-text-color); }
         .bgc-pendencies { list-style-type: none; padding-left: 0; margin: 0; }
         .bgc-pendencies li { background-color: #fff8e1; border-left: 3px solid var(--error-color); padding: 8px 12px; margin-bottom: 5px; border-radius: 4px; font-weight: 500; }
+        
+        /* ✅ CORREÇÃO 2: CSS para os moldes maiores (Etapa 4), como no seu exemplo */
         .guide-shape {
             position: absolute;
             border: 3px dashed white;
@@ -95,7 +97,7 @@
         
         <div class="step" id="step-2">
             <h2>Documento (Frente)</h2>
-            <p>Posicione a FRENTE do seu documento na moldura e clique em capturar.</p>
+            <p>Posicione a FRENTE do seu documento na moldura e clique para capturar.</p>
             <div class="camera-container">
                 <div class="camera-feed">
                     <video id="doc_frente-webcam" autoplay playsinline></video>
@@ -241,6 +243,7 @@
                     if (!webcamElement || webcamElement.readyState < 3) { return; }
                     const detections = await faceapi.detectAllFaces(webcamElement, new faceapi.TinyFaceDetectorOptions());
                     
+                    // ✅ CORREÇÃO 1: Lógica para feedback visual na Etapa 2
                     if (type === 'doc_frente') {
                         const overlayEl = document.getElementById('doc_frente-overlay-shape');
                         if (detections && detections.length === 1) {
@@ -373,6 +376,7 @@
                 const response = await fetch('/onboarding/pf/verificar', { method: 'POST', body: formData, headers: {'X-API-KEY': API_KEY} });
                 const data = await response.json();
                 
+                // ✅ CORREÇÃO 3: Tratamento de erro robusto no frontend
                 if (!response.ok) {
                     throw new Error(data.erro || data.motivo || 'Erro desconhecido na API.');
                 }
