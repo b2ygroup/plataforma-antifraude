@@ -4,6 +4,7 @@ import re
 import json
 import base64
 from functools import wraps
+from io import BytesIO
 from flask import Blueprint, request, jsonify, current_app
 from app import db
 from app.models import Verificacao
@@ -11,9 +12,9 @@ from google.cloud import vision
 from google.oauth2 import service_account
 import cloudinary
 import cloudinary.uploader
+from PIL import Image
 from app.services import bgc_service, biometrics_service, data_service, document_service, score_service
 
-# Nome corrigido para refletir que este é o blueprint de Pessoa Física
 bp = Blueprint('onboarding_pf', __name__)
 
 cloudinary.config(
@@ -60,43 +61,62 @@ def get_vision_client():
     return client
 
 def analisar_documento_com_google_vision(doc_frente_bytes):
-    """Usa a Google Vision API para extrair texto (OCR) de uma imagem de documento com regex aprimorado."""
+    """Usa a Google Vision API para extrair texto (OCR) e a foto 3x4 de um documento."""
     logger = current_app.logger
     logger.info("OCR: Iniciando análise de documento...")
     try:
         client = get_vision_client()
         if client is None:
-            return {"status": "ERRO_CONFIGURACAO", "motivo": "Serviço de OCR não configurado corretamente."}
+            return {"status": "ERRO_CONFIGURACAO", "motivo": "Serviço de OCR não configurado."}
 
         image = vision.Image(content=doc_frente_bytes)
-        response = client.text_detection(image=image)
-        texts = response.text_annotations
+        
+        # --- 1. Extração de Texto ---
+        response_text = client.text_detection(image=image)
+        texts = response_text.text_annotations
         if not texts:
             return {"status": "REPROVADO_OCR", "motivo": "Não foi possível detetar texto no documento."}
-
+        
         full_text_com_newlines = texts[0].description
         logger.info(f"OCR: Texto completo extraído:\n---\n{full_text_com_newlines}\n---")
         
         full_text_flat = full_text_com_newlines.replace('\n', ' ')
         dados_extraidos = {}
         
-        # Extração de CPF
         cpf_padrao = r'(\d{3}\.\d{3}\.\d{3}-\d{2})'
         if match := re.search(cpf_padrao, full_text_flat):
             dados_extraidos['cpf'] = match.group(1)
 
-        # Regex aprimorado para data de nascimento (funciona na CNH)
         nasc_padrao = r'(?:NASCIMENTO|DE NASCIMENTO)\n(\d{2}/\d{2}/\d{4})'
         if match := re.search(nasc_padrao, full_text_com_newlines, re.IGNORECASE):
             dados_extraidos['data_nascimento'] = match.group(1)
 
-        # Regex aprimorado para o nome (funciona na CNH)
-        nome_padrao = r'(?:NOME E SOBRENOM|NOME)\n([A-Z\s]+?)(?=\n)'
+        nome_padrao = r'(?:NOME E SOBRENOME|NOME)\n([A-Z\s]+?)(?=\n)'
         if match := re.search(nome_padrao, full_text_com_newlines, re.IGNORECASE):
             nome = match.group(1).replace('\n', ' ').strip()
             dados_extraidos['nome'] = re.sub(r'\s+', ' ', nome)
 
-        # Verificação final dos campos extraídos
+        # --- 2. Extração da Foto 3x4 ---
+        foto_3x4_base64 = None
+        response_face = client.face_detection(image=image)
+        if response_face.face_annotations:
+            face = response_face.face_annotations[0]
+            vertices = face.bounding_poly.vertices
+            
+            img = Image.open(BytesIO(doc_frente_bytes))
+            
+            # Corta a imagem na área do rosto detectado
+            cropped_image = img.crop((vertices[0].x, vertices[0].y, vertices[2].x, vertices[2].y))
+            
+            # Salva a imagem cortada em memória e a converte para base64
+            buffered = BytesIO()
+            cropped_image.save(buffered, format="JPEG")
+            foto_3x4_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+            logger.info("OCR: Foto 3x4 extraída com sucesso do documento.")
+        else:
+            logger.warning("OCR: Nenhum rosto detectado no documento para extrair a foto 3x4.")
+
+        # --- 3. Verificação Final ---
         campos_faltando = []
         if 'nome' not in dados_extraidos: campos_faltando.append('nome')
         if 'cpf' not in dados_extraidos: campos_faltando.append('cpf')
@@ -108,11 +128,11 @@ def analisar_documento_com_google_vision(doc_frente_bytes):
             return {"status": "REPROVADO_OCR", "motivo": motivo}
 
         logger.info(f"OCR: Dados extraídos com sucesso: {dados_extraidos}")
-        return {"status": "SUCESSO", "dados": dados_extraidos, "foto_3x4_base64": "..."}
+        return {"status": "SUCESSO", "dados": dados_extraidos, "foto_3x4_base64": foto_3x4_base64}
+        
     except Exception as e:
         logger.error(f"OCR: Erro inesperado na função de análise: {e}", exc_info=True)
         return {"status": "ERRO_API", "motivo": "Ocorreu um erro interno no serviço de IA."}
-
 
 @bp.route('/extrair-ocr', methods=['POST'])
 @require_api_key
@@ -137,7 +157,7 @@ def verificar_pessoa_fisica():
     """Rota principal que executa o workflow de verificação de Pessoa Física."""
     logger = current_app.logger
     if 'documento_frente' not in request.files or 'selfie_documento' not in request.files or 'selfie_liveness' not in request.files:
-        return jsonify({"erro": "Todos os arquivos (documento_frente, selfie_documento, selfie_liveness) são obrigatórios."}), 400
+        return jsonify({"erro": "Todos os arquivos são obrigatórios."}), 400
     
     nome_cliente = request.form.get('nome', 'N/A')
     cpf_cliente = request.form.get('cpf', 'N/A')
@@ -210,3 +230,4 @@ def verificar_pessoa_fisica():
         db.session.rollback()
 
     return jsonify(resposta_final), 200
+
