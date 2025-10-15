@@ -149,7 +149,7 @@
             document.getElementById(`step-${stepNumber}`).classList.add('active');
             currentStep = stepNumber;
         }
-
+        
         function stopAllMedia() {
             if (activeStream) {
                 activeStream.getTracks().forEach(track => track.stop());
@@ -183,6 +183,23 @@
             showStep(1);
         }
 
+        // ✅ NOVIDADE: Função centralizada para iniciar a captura automática com contagem regressiva
+        function initiateAutomaticCapture(type, instructionEl) {
+            stopAllMedia(); // Para qualquer detecção anterior
+            instructionEl.innerText = 'Ótimo! Fique parado...';
+            
+            let countdown = 3;
+            const countdownInterval = setInterval(() => {
+                instructionEl.innerText = `Capturando em ${countdown}...`;
+                countdown--;
+                if (countdown < 0) {
+                    clearInterval(countdownInterval);
+                    instructionEl.innerText = "Capturando...";
+                    takePicture(type);
+                }
+            }, 1000);
+        }
+
         async function startCamera(type, detectFace = false) {
             const webcamElement = document.getElementById(`${type}-webcam`);
             const instructionEl = document.getElementById(`${type}-instruction`);
@@ -209,20 +226,15 @@
                 instructionEl.style.display = 'block';
                 faceApiInterval = setInterval(async () => {
                     if (!webcamElement || webcamElement.readyState < 3) { return; }
-
                     const detections = await faceapi.detectAllFaces(webcamElement, new faceapi.TinyFaceDetectorOptions());
                     
                     if (type === 'doc_frente') {
                         const overlayEl = document.getElementById('doc_frente-overlay-shape');
                         if (detections && detections.length === 1) {
-                            instructionEl.innerText = "Documento detectado! Capturando...";
                             if(overlayEl) overlayEl.classList.add('detected');
-                            
-                            stopAllMedia();
-                            await sleep(1000);
-                            takePicture('doc_frente');
+                            initiateAutomaticCapture('doc_frente', instructionEl);
                         } else {
-                            instructionEl.innerText = "Centralize a foto do seu documento na moldura";
+                            instructionEl.innerText = "Centralize a foto do documento na moldura";
                             if(overlayEl) overlayEl.classList.remove('detected');
                         }
                     }
@@ -230,22 +242,12 @@
                     else if (type === 'selfie_doc') {
                         const faceGuide = document.querySelector('.face-guide');
                         const docGuide = document.querySelector('.doc-guide');
-
                         if (detections && detections.length > 1) {
-                            instructionEl.innerText = "Excelente! Capturando...";
                             if(faceGuide) faceGuide.classList.add('detected');
                             if(docGuide) docGuide.classList.add('detected');
-                            
-                            stopAllMedia();
-                            await sleep(1000); 
-                            takePicture('selfie_doc');
-
-                        } else if (detections && detections.length === 1) {
-                            instructionEl.innerText = "Aproxime o documento da câmera";
-                            if(faceGuide) faceGuide.classList.remove('detected');
-                            if(docGuide) docGuide.classList.remove('detected');
+                            initiateAutomaticCapture('selfie_doc', instructionEl);
                         } else {
-                            instructionEl.innerText = "Posicione seu rosto e o documento";
+                            instructionEl.innerText = detections && detections.length === 1 ? "Aproxime o documento da câmera" : "Posicione seu rosto e o documento";
                             if(faceGuide) faceGuide.classList.remove('detected');
                             if(docGuide) docGuide.classList.remove('detected');
                         }
@@ -325,7 +327,6 @@
                 ocrForm.style.display = 'block';
                 ocrInstruction.innerText = 'Verifique se os dados extraídos do seu documento estão corretos.';
             } catch (error) {
-                // ✅ CORREÇÃO: Lógica "Tentar Novamente" agora limpa o estado e reinicia a câmera.
                 const tryAgain = confirm(`Falha na Leitura: ${error.message}\nDeseja tentar novamente?`);
                 if (tryAgain) {
                     stopAllMedia();
@@ -515,10 +516,7 @@
                     
                     const SMILE_THRESHOLD = 0.8;
                     if (expressions.happy > SMILE_THRESHOLD) {
-                        instructionEl.innerText = "Excelente! Capturando...";
-                        stopAllMedia();
-                        await sleep(1000);
-                        takePicture('selfie');
+                        initiateAutomaticCapture('selfie', instructionEl);
                     }
                 }
             }, 500);
