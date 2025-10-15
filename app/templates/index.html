@@ -27,8 +27,8 @@
         .camera-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
         .doc-overlay-shape { position: absolute; top: 50%; left: 50%; width: 90%; height: 60%; transform: translate(-50%, -50%); border-radius: 12px; border: 3px dashed white; transition: all 0.3s; }
         .selfie-overlay-shape { position: absolute; top: 50%; left: 50%; width: 70%; padding-bottom: 85%; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); border: 3px dashed white; transition: all 0.5s; }
-        .selfie-overlay-shape.detected, .doc-overlay-shape.detected { border-color: var(--success-color); border-style: solid; }
-        .camera-instruction { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 500; z-index: 10; animation: fadeIn 0.5s; }
+        .selfie-overlay-shape.detected { border-color: var(--success-color); border-style: solid; box-shadow: 0 0 0 9999px rgba(40, 167, 69, 0.4); }
+        .camera-instruction { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background-color: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 20px; font-weight: 500; z-index: 10; animation: fadeIn 0.5s; }
         .loader { border: 8px solid #f3f3f3; border-top: 8px solid var(--primary-color); border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin: 20px auto; }
         .form-group { text-align: left; margin-bottom: 15px; }
         input[type="text"] { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; box-sizing: border-box; }
@@ -67,17 +67,17 @@
         
         <div class="step" id="step-2">
             <h2>Documento (Frente)</h2>
-            <p>Posicione a FRENTE do seu documento na moldura para a captura automática.</p>
+            <p>Posicione a FRENTE do seu documento na moldura e clique em capturar.</p>
             <div class="camera-container">
                 <div class="camera-feed">
                     <video id="doc_frente-webcam" autoplay playsinline></video>
                     <div class="camera-overlay">
-                        <div id="doc_frente-overlay-shape" class="doc-overlay-shape"></div>
-                        <div id="doc_frente-instruction" class="camera-instruction">Centralize o documento...</div>
+                        <div class="doc-overlay-shape"></div>
                     </div>
                 </div>
                 <canvas id="doc_frente-canvas" style="display:none;"></canvas>
             </div>
+            <button class="button" onclick="takePicture('doc_frente')" id="capture-doc-button">Capturar Frente</button>
             <div style="margin-top: 20px;"><p>Ou</p><div class="file-upload-wrapper"><input type="file" id="doc-upload-input" accept="image/*" onchange="handleDocUpload(event)"><button class="file-upload-button">Fazer Upload do Documento</button></div><p id="file-upload-name"></p></div>
         </div>
 
@@ -85,7 +85,7 @@
         
         <div class="step" id="step-4">
             <h2>Selfie com Documento</h2>
-            <p>Posicione seu rosto e seu documento nos moldes para a captura automática.</p>
+            <p>Posicione seu rosto e seu documento nos moldes e clique em capturar.</p>
             <div class="camera-container">
                 <div class="camera-feed">
                     <video id="selfie_doc-webcam" autoplay playsinline></video>
@@ -97,6 +97,7 @@
                 </div>
                 <canvas id="selfie_doc-canvas" style="display:none;"></canvas>
             </div>
+            <button class="button" onclick="takePicture('selfie_doc')">Capturar Selfie com Documento</button>
         </div>
 
         <div class="step" id="step-5"><h2>Prova de Vida (Sorriso)</h2><p>Centralize seu rosto e, quando o molde ficar verde, SORRIA para a captura automática.</p><div class="camera-container"><div class="camera-feed"><video id="selfie-webcam" autoplay playsinline></video><div class="camera-overlay"><div id="selfie-overlay-shape" class="selfie-overlay-shape"></div><div id="selfie-instruction" class="camera-instruction"></div></div></div><canvas id="selfie-canvas" style="display:none;"></canvas></div></div>
@@ -149,7 +150,7 @@
             document.getElementById(`step-${stepNumber}`).classList.add('active');
             currentStep = stepNumber;
         }
-        
+
         function stopAllMedia() {
             if (activeStream) {
                 activeStream.getTracks().forEach(track => track.stop());
@@ -165,7 +166,8 @@
             stopAllMedia();
             const nextStepNumber = currentStep + 1;
             showStep(nextStepNumber);
-            if (nextStepNumber === 2) { startCamera('doc_frente', true); } 
+            // ✅ ALTERAÇÃO: a detecção de rosto para o doc_frente foi removida daqui
+            if (nextStepNumber === 2) { startCamera('doc_frente'); } 
             else if (nextStepNumber === 4) { startCamera('selfie_doc', true); }
             else if (nextStepNumber === 5) { runLivenessSequence(); }
             else if (nextStepNumber === 6) { verificarPessoaFisica(); }
@@ -180,24 +182,13 @@
             document.getElementById('result-container').innerHTML = '';
             document.getElementById('final-status-container').innerHTML = '';
             document.getElementById('file-upload-name').innerText = '';
-            showStep(1);
-        }
+            // ✅ ALTERAÇÃO: Garante que os botões manuais reapareçam ao reiniciar
+            const captureDocButton = document.getElementById('capture-doc-button');
+            if (captureDocButton) captureDocButton.style.display = 'block';
+            const uploadWrapper = document.querySelector('#step-2 .file-upload-wrapper');
+            if (uploadWrapper) uploadWrapper.style.display = 'block';
 
-        // ✅ NOVIDADE: Função centralizada para iniciar a captura automática com contagem regressiva
-        function initiateAutomaticCapture(type, instructionEl) {
-            stopAllMedia(); // Para qualquer detecção anterior
-            instructionEl.innerText = 'Ótimo! Fique parado...';
-            
-            let countdown = 3;
-            const countdownInterval = setInterval(() => {
-                instructionEl.innerText = `Capturando em ${countdown}...`;
-                countdown--;
-                if (countdown < 0) {
-                    clearInterval(countdownInterval);
-                    instructionEl.innerText = "Capturando...";
-                    takePicture(type);
-                }
-            }, 1000);
+            showStep(1);
         }
 
         async function startCamera(type, detectFace = false) {
@@ -222,30 +213,23 @@
             webcamElement.srcObject = stream;
             activeStream = stream;
 
+            // ✅ ALTERAÇÃO: A lógica de detecção de rosto foi removida da Etapa 2 (doc_frente)
+            // e simplificada na Etapa 4 (selfie_doc) para apenas dar feedback, sem capturar.
             if (detectFace && instructionEl) {
                 instructionEl.style.display = 'block';
                 faceApiInterval = setInterval(async () => {
                     if (!webcamElement || webcamElement.readyState < 3) { return; }
+
                     const detections = await faceapi.detectAllFaces(webcamElement, new faceapi.TinyFaceDetectorOptions());
                     
-                    if (type === 'doc_frente') {
-                        const overlayEl = document.getElementById('doc_frente-overlay-shape');
-                        if (detections && detections.length === 1) {
-                            if(overlayEl) overlayEl.classList.add('detected');
-                            initiateAutomaticCapture('doc_frente', instructionEl);
-                        } else {
-                            instructionEl.innerText = "Centralize a foto do documento na moldura";
-                            if(overlayEl) overlayEl.classList.remove('detected');
-                        }
-                    }
-                    
-                    else if (type === 'selfie_doc') {
+                    if (type === 'selfie_doc') {
                         const faceGuide = document.querySelector('.face-guide');
                         const docGuide = document.querySelector('.doc-guide');
+
                         if (detections && detections.length > 1) {
+                            instructionEl.innerText = "Posição correta!";
                             if(faceGuide) faceGuide.classList.add('detected');
                             if(docGuide) docGuide.classList.add('detected');
-                            initiateAutomaticCapture('selfie_doc', instructionEl);
                         } else {
                             instructionEl.innerText = detections && detections.length === 1 ? "Aproxime o documento da câmera" : "Posicione seu rosto e o documento";
                             if(faceGuide) faceGuide.classList.remove('detected');
@@ -273,6 +257,7 @@
             }
 
             canvasElement.toBlob(function(blob) {
+                stopAllMedia(); // Para a câmera imediatamente após a captura
                 if (type === 'doc_frente') {
                     capturedDocFrenteBlob = blob;
                     showStep(3);
@@ -290,18 +275,17 @@
         async function handleDocUpload(event) {
             const file = event.target.files[0];
             if (file) {
+                stopAllMedia();
                 document.getElementById('file-upload-name').innerText = `Arquivo selecionado: ${file.name}`;
                 const cameraContainer = document.querySelector('#step-2 .camera-container');
                 if(cameraContainer) cameraContainer.style.display = 'none';
+                const captureButton = document.getElementById('capture-doc-button');
+                if(captureButton) captureButton.style.display = 'none';
 
                 capturedDocFrenteBlob = file;
                 await sleep(500);
                 showStep(3);
                 extrairDadosDoDocumento(file);
-            } else {
-                document.getElementById('file-upload-name').innerText = '';
-                const cameraContainer = document.querySelector('#step-2 .camera-container');
-                if(cameraContainer) cameraContainer.style.display = 'block';
             }
         }
 
@@ -332,7 +316,7 @@
                     stopAllMedia();
                     capturedDocFrenteBlob = null;
                     showStep(2);
-                    startCamera('doc_frente', true);
+                    startCamera('doc_frente');
                 } else {
                     restart();
                 }
@@ -516,7 +500,10 @@
                     
                     const SMILE_THRESHOLD = 0.8;
                     if (expressions.happy > SMILE_THRESHOLD) {
-                        initiateAutomaticCapture('selfie', instructionEl);
+                        instructionEl.innerText = "Excelente! Capturando...";
+                        stopAllMedia();
+                        await sleep(1000);
+                        takePicture('selfie');
                     }
                 }
             }, 500);
